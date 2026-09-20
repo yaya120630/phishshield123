@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: phishshield-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: VT_API_KEY
+        sync: false          # set manually in Render dashboard — never commit real keys
+      - key: GEMINI_API_KEY
+        sync: false          # set manually in Render dashboard — never commit real keys
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash
+      - key: PHISHSHIELD_API_KEY
+        sync: false          # optional shared secret — set it here AND in js/config.js

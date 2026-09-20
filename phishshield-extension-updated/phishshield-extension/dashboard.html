@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PhishShield — Monitoring Dashboard</title>
+<style>
+  :root{
+    --bg: #F7F8FB;
+    --panel: #FFFFFF;
+    --panel-soft: #F1F3F8;
+    --line: #E6E9F0;
+    --text: #23262E;
+    --text-dim: #8A90A0;
+    --safe: #1FAE7A;
+    --safe-bg: #E7F9F1;
+    --warn: #E08A1E;
+    --warn-bg: #FDF2E0;
+    --danger: #E0503E;
+    --danger-bg: #FCEAE7;
+    --accent: #4C6FE0;
+    --accent-bg: #EAEFFD;
+    --sans: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    --shadow: 0 1px 2px rgba(30,34,50,0.04), 0 8px 24px -12px rgba(30,34,50,0.10);
+  }
+  body.dark{
+    --bg: #12131A;
+    --panel: #1B1D27;
+    --panel-soft: #23252F;
+    --line: #2C2F3B;
+    --text: #ECEDF3;
+    --text-dim: #8B90A3;
+    --safe: #3ECF8E;
+    --safe-bg: #103826;
+    --warn: #F2A93C;
+    --warn-bg: #3A2A0E;
+    --danger: #FF6B7A;
+    --danger-bg: #3A151C;
+    --accent: #7C8CF8;
+    --accent-bg: #232A4D;
+    --shadow: 0 1px 2px rgba(0,0,0,0.2), 0 8px 24px -12px rgba(0,0,0,0.5);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height:100vh;
+    padding: 28px;
+    -webkit-font-smoothing: antialiased;
+    transition: background .2s ease, color .2s ease;
+  }
+  a{color:inherit;}
+
+  .topbar{ display:flex; align-items:center; gap:18px; margin-bottom:26px; }
+  .logo{ display:flex; align-items:center; gap:10px; font-weight:800; font-size:16px; letter-spacing:-0.01em; white-space:nowrap; }
+  .logo .mark{
+    width:32px; height:32px; border-radius:9px;
+    background: linear-gradient(135deg, #6C8CF5, #1FAE7A);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow: 0 4px 10px -3px rgba(76,111,224,0.5);
+    overflow:hidden;
+  }
+  .logo .mark img{ width:100%; height:100%; object-fit:contain; padding:4px; box-sizing:border-box; }
+  .logo .sub{ font-size:10.5px; font-weight:600; color:var(--text-dim); margin-top:-2px; }
+  .search{
+    flex:1; max-width:640px; display:flex; align-items:center; gap:10px;
+    background: var(--panel); border:1.5px solid var(--line); border-radius:12px;
+    padding:12px 16px; font-size:13.5px; color: var(--text-dim); box-shadow: var(--shadow);
+  }
+  .search:focus-within{ border-color: var(--accent); }
+  .search input{ flex:1; background:none; border:none; outline:none; color: var(--text); font-size:13.5px; font-family: var(--sans); }
+  .search input::placeholder{ color: var(--text-dim); }
+  .search button{
+    background: var(--accent); color:#fff; border:none; border-radius:8px;
+    padding:8px 14px; font-size:12.5px; font-weight:700; cursor:pointer;
+  }
+  .search button:disabled{ opacity:.6; cursor:default; }
+  .topbar-right{ display:flex; align-items:center; gap:14px; margin-left:auto; }
+  .icon-btn{
+    width:36px; height:36px; border-radius:10px; background:var(--panel); border:1.5px solid var(--line);
+    display:flex; align-items:center; justify-content:center; font-size:15px; cursor:pointer; box-shadow: var(--shadow);
+  }
+  .avatar{
+    width:36px; height:36px; border-radius:50%; background: linear-gradient(135deg,#6C8CF5,#4C6FE0);
+    display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:11px; font-weight:700; color:#fff;
+  }
+
+  .notif-wrap{ position:relative; }
+  #notif-bell{ position:relative; }
+  .notif-badge{
+    position:absolute; top:-4px; right:-4px; min-width:16px; height:16px; padding:0 4px;
+    border-radius:8px; background:var(--danger); color:#fff; font-size:9.5px; font-weight:800;
+    display:flex; align-items:center; justify-content:center; line-height:1; box-shadow:0 0 0 2px var(--panel);
+  }
+  .notif-dropdown{
+    display:none; position:absolute; top:44px; right:0; width:300px; max-height:380px; overflow-y:auto;
+    background:var(--panel); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow);
+    z-index:50; padding:8px;
+  }
+  .notif-dropdown.open{ display:block; }
+  .notif-hd{ font-size:10.5px; font-weight:800; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; padding:6px 8px 10px 8px; }
+  .notif-item{ display:flex; gap:10px; align-items:flex-start; padding:8px; border-radius:10px; cursor:pointer; }
+  .notif-item:hover{ background:var(--panel-soft); }
+  .notif-dot{ width:8px; height:8px; border-radius:50%; margin-top:5px; flex-shrink:0; }
+  .notif-dot.safe{ background:var(--safe); }
+  .notif-dot.warn{ background:var(--warn); }
+  .notif-dot.danger{ background:var(--danger); }
+  .notif-body{ min-width:0; }
+  .notif-url{ font-family:var(--mono); font-size:11.5px; word-break:break-all; color:var(--text); }
+  .notif-meta{ font-size:10.5px; color:var(--text-dim); margin-top:2px; }
+
+  .layout{ display:grid; grid-template-columns: 220px 1fr; gap:26px; }
+
+  .nav{ display:flex; flex-direction:column; gap:2px; }
+  .nav-label{ font-size:10.5px; text-transform:uppercase; letter-spacing:0.09em; color: var(--text-dim); margin: 16px 0 8px 12px; font-weight:700; }
+  .nav-label:first-child{ margin-top:0; }
+  .nav-item{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; font-size:13.5px; font-weight:500; color: var(--text-dim); cursor:pointer; }
+  .nav-item .ic{ font-size:14px; width:18px; text-align:center; }
+  .nav-item.active{ background: var(--accent-bg); color: var(--accent); font-weight:700; }
+  .nav-item:hover:not(.active){ background: var(--panel-soft); color: var(--text); }
+
+  .helper-card{
+    margin-top:20px; padding:16px; border-radius:14px;
+    background: linear-gradient(160deg, var(--accent-bg), var(--panel-soft)); border:1px solid var(--line);
+  }
+  .helper-card .emoji{ font-size:20px; margin-bottom:8px; }
+  .helper-card .t{ font-size:12.5px; font-weight:700; margin-bottom:4px; color: var(--text); }
+  .helper-card .d{ font-size:11.5px; color:var(--text-dim); line-height:1.5; margin-bottom:10px; }
+  .helper-card button{ width:100%; padding:8px; border-radius:8px; border:none; background: var(--accent); color:#fff; font-size:12px; font-weight:600; cursor:pointer; }
+
+  .main{ display:flex; flex-direction:column; gap:20px; }
+
+  .welcome{ display:flex; align-items:center; justify-content:space-between; }
+  .welcome h1{ font-size:20px; font-weight:800; letter-spacing:-0.01em; }
+  .welcome p{ font-size:13px; color:var(--text-dim); margin-top:3px; }
+  .cta-btn{
+    padding:11px 18px; border-radius:11px; border:none; background: var(--accent); color:#fff;
+    font-size:13.5px; font-weight:700; cursor:pointer; box-shadow: 0 6px 16px -6px rgba(76,111,224,0.6);
+  }
+
+  .stat-row{ display:grid; grid-template-columns: repeat(4, 1fr); gap:14px; }
+  .stat{ background: var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; box-shadow: var(--shadow); }
+  .stat .top-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .stat .lbl{ font-size:12px; color:var(--text-dim); font-weight:600; }
+  .stat .badge{ width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:14px; }
+  .stat.total .badge{ background: var(--accent-bg); }
+  .stat.safe .badge{ background: var(--safe-bg); }
+  .stat.warn .badge{ background: var(--warn-bg); }
+  .stat.danger .badge{ background: var(--danger-bg); }
+  .stat .val{ font-family:var(--mono); font-size:25px; font-weight:800; }
+  .stat.safe .val{ color: var(--safe); }
+  .stat.warn .val{ color: var(--warn); }
+  .stat.danger .val{ color: var(--danger); }
+  .stat .sub{ font-size:11.5px; color:var(--text-dim); margin-top:4px; }
+
+  .panel{ background: var(--panel); border:1px solid var(--line); border-radius:16px; padding:22px; box-shadow: var(--shadow); scroll-margin-top: 20px; }
+  .panel-hd{ display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
+  .panel-hd h2{ font-size:15px; font-weight:800; }
+  .panel-hd .meta{ font-size:11.5px; color:var(--text-dim); font-family:var(--mono); }
+
+  .empty-state{ font-size:12.5px; color: var(--text-dim); padding: 10px 2px; }
+
+  .report-grid{ display:grid; grid-template-columns: 190px 1fr; gap:26px; }
+  .ring-wrap{ display:flex; flex-direction:column; align-items:center; gap:12px; }
+  .ring{ position:relative; width:148px; height:148px; }
+  .ring svg{ transform: rotate(-90deg); }
+  .ring-txt{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .ring-txt .n{ font-family:var(--mono); font-size:23px; font-weight:800; }
+  .ring-txt .d{ font-size:10px; color:var(--text-dim); margin-top:2px; text-align:center; }
+  .verdict{ font-size:12px; font-weight:700; padding:6px 14px; border-radius:20px; }
+
+  .url-meta{ display:flex; flex-direction:column; gap:12px; }
+  .url-meta .name{ font-family:var(--mono); font-size:13.5px; font-weight:700; word-break:break-all; background:var(--panel-soft); padding:10px 14px; border-radius:10px; }
+  .ai-box{
+    font-size:12.5px; color: var(--text); background: var(--accent-bg); border-radius:10px; padding:12px 14px; line-height:1.55;
+    border-left:3px solid var(--accent);
+  }
+  .ai-box .ai-tag{ font-size:10px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:.05em; margin-bottom:5px; display:block; }
+
+  .kv-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:10px 24px; margin-top:2px; }
+  .kv{ display:flex; flex-direction:column; gap:3px; }
+  .kv .k{ font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.04em; font-weight:600; }
+  .kv .v{ font-family:var(--mono); font-size:12.5px; color:var(--text); word-break:break-all; }
+
+  .tags{ display:flex; gap:6px; flex-wrap:wrap; }
+  .tag{ font-size:10.5px; font-weight:600; padding:4px 10px; border-radius:7px; background: var(--panel-soft); color:var(--text-dim); }
+  .tag.flag{ background: var(--danger-bg); color: var(--danger); }
+
+  .section-list{ display:flex; flex-direction:column; gap:20px; }
+  .section-block{ background: var(--panel); border:1px solid var(--line); border-radius:16px; padding:22px; box-shadow: var(--shadow); scroll-margin-top: 20px; }
+  .page-hidden{ display:none !important; }
+  .section-block-hd{ display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+  .section-block-hd .ic{ font-size:16px; }
+  .section-block-hd h2{ font-size:15px; font-weight:800; }
+  .section-block-hd .meta{ font-size:11.5px; color:var(--text-dim); font-family:var(--mono); margin-left:auto; }
+
+  .engine-grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; }
+  .engine{ background: var(--panel-soft); border-radius:11px; padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .engine .ename{ font-size:12.5px; font-weight:600; color: var(--text); }
+  .engine .estatus{ font-family:var(--mono); font-size:10.5px; font-weight:600; }
+  .engine.clean{ background: var(--safe-bg); }
+  .engine.clean .estatus{ color: var(--safe); }
+  .engine.flagged{ background: var(--danger-bg); }
+  .engine.flagged .estatus{ color: var(--danger); }
+  .engine.unrated .estatus{ color: var(--text-dim); }
+  .engine-name-row{ display:flex; align-items:center; gap:8px; }
+  .engine .icn{ font-size:12px; }
+
+  .community-summary{ display:flex; align-items:center; gap:20px; padding:16px; background: var(--panel-soft); border-radius:12px; margin-bottom:18px; }
+  .vote-box{ text-align:center; }
+  .vote-box .n{ font-family:var(--mono); font-size:22px; font-weight:800; }
+  .vote-box.up .n{ color: var(--safe); }
+  .vote-box.down .n{ color: var(--danger); }
+  .vote-box .l{ font-size:10.5px; color:var(--text-dim); font-weight:600; margin-top:2px; }
+  .vote-divider{ width:1px; align-self:stretch; background:var(--line); }
+  .community-note{ font-size:12px; color:var(--text-dim); line-height:1.5; }
+  .comment{ display:flex; gap:12px; padding:14px 0; border-bottom:1px solid var(--line); }
+  .comment:last-child{ border-bottom:none; padding-bottom:0; }
+  .comment .cav{ width:32px; height:32px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:10.5px; font-weight:700; color:#fff; }
+  .comment .body{ flex:1; }
+  .comment .hd{ display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+  .comment .who{ font-size:12.5px; font-weight:700; }
+  .comment .when{ font-size:11px; color:var(--text-dim); }
+  .comment .verdict-chip{ font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px; }
+  .comment .txt{ font-size:12.5px; color:var(--text); line-height:1.5; }
+  .comment-form{ display:flex; gap:10px; margin-top:16px; }
+  .comment-form input{ flex:1; padding:10px 14px; border-radius:9px; border:1.5px solid var(--line); font-size:12.5px; font-family:var(--sans); outline:none; }
+  .comment-form input:focus{ border-color: var(--accent); }
+  .comment-form button{ background: var(--accent); color:#fff; border:none; border-radius:9px; padding:0 16px; font-size:12.5px; font-weight:700; cursor:pointer; }
+
+  .details-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:14px 32px; }
+  .detail-row{ display:flex; justify-content:space-between; gap:16px; padding:11px 0; border-bottom:1px solid var(--line); }
+  .detail-row .k{ font-size:12.5px; color:var(--text-dim); font-weight:600; }
+  .detail-row .v{ font-size:12.5px; font-family:var(--mono); text-align:right; word-break:break-all; }
+  .section-sub{ font-size:12.5px; font-weight:800; color:var(--text); margin:20px 0 10px; }
+  .section-sub:first-child{ margin-top:0; }
+
+  .relation-group{ margin-bottom:18px; }
+  .relation-group:last-child{ margin-bottom:0; }
+  .relation-hd{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .relation-hd .t{ font-size:12.5px; font-weight:700; }
+  .relation-hd .c{ font-size:11px; color:var(--text-dim); background:var(--panel-soft); padding:2px 9px; border-radius:20px; font-weight:600; }
+  .rel-item{ display:flex; align-items:center; justify-content:space-between; padding:11px 14px; background: var(--panel-soft); border-radius:10px; margin-bottom:6px; }
+  .rel-item .left{ display:flex; align-items:center; gap:10px; font-size:12px; font-family:var(--mono); }
+  .rel-item .ic{ font-size:14px; }
+  .rel-item .badge{ font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:20px; }
+
+  table{ width:100%; border-collapse: collapse; }
+  th{ text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-dim); font-weight:700; padding:0 12px 12px 12px; }
+  td{ padding:13px 12px; font-size:12.5px; vertical-align:middle; }
+  tbody tr:hover{ background: var(--panel-soft); cursor:pointer; }
+  td.mono{ font-family:var(--mono); color:var(--text-dim); font-size:11px; }
+  .pill{ display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px; }
+  .pill .icn{ width:6px; height:6px; border-radius:50%; }
+  .pill.safe{ background: var(--safe-bg); color:var(--safe); }
+  .pill.safe .icn{ background:var(--safe); }
+  .pill.warn{ background: var(--warn-bg); color:var(--warn); }
+  .pill.warn .icn{ background:var(--warn); }
+  .pill.danger{ background: var(--danger-bg); color:var(--danger); }
+  .pill.danger .icn{ background:var(--danger); }
+  .row-btn{ font-size:11px; font-weight:700; color:var(--accent); background:none; border:none; cursor:pointer; }
+  tbody tr.selected{ background: var(--accent-bg); }
+
+  .empty-tip{ display:flex; align-items:center; gap:10px; font-size:12px; color: var(--text-dim); background: var(--panel-soft); border-radius:10px; padding:12px 14px; margin-top:14px; }
+
+  @media (max-width: 880px){
+    .layout{ grid-template-columns: 1fr; }
+    .nav{ flex-direction:row; overflow-x:auto; }
+    .helper-card{ display:none; }
+    .report-grid, .details-grid{ grid-template-columns: 1fr; }
+    .engine-grid{ grid-template-columns: 1fr 1fr; }
+    .stat-row{ grid-template-columns: 1fr 1fr; }
+    .welcome{ flex-direction:column; align-items:flex-start; gap:12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">
+    <div class="mark"><img src="icons/icon128.png" alt="PhishShield logo"></div>
+    <div>PhishShield<div class="sub">Monitoring Dashboard</div></div>
+  </div>
+  <div class="search">
+    <span>🔍</span>
+    <input id="url-input" placeholder="Paste a URL to check it for phishing…" />
+    <button id="scan-btn">Scan URL</button>
+  </div>
+  <div class="topbar-right">
+    <div class="icon-btn" id="themeToggle" title="Toggle dark mode">🌙</div>
+    <div class="notif-wrap" id="notif-wrap">
+      <div class="icon-btn" id="notif-bell" title="Recent threats">
+        🔔
+        <span class="notif-badge" id="notif-badge" style="display:none;">0</span>
+      </div>
+      <div class="notif-dropdown" id="notif-dropdown"></div>
+    </div>
+    <div class="avatar" id="user-avatar">–</div>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="nav">
+    <div class="nav-label">Monitor</div>
+    <div class="nav-item active" data-target="dashboard-top"><span class="ic">🏠</span> Dashboard</div>
+    <div class="nav-item" data-target="section-vendor"><span class="ic">🛡️</span> Vendor Analysis</div>
+    <div class="nav-item" data-target="section-details"><span class="ic">📄</span> Details</div>
+    <div class="nav-item" data-target="section-relations"><span class="ic">🕸️</span> Relations</div>
+    <div class="nav-item" data-target="section-community"><span class="ic">💬</span> Community</div>
+    <div class="nav-item" data-target="section-recent"><span class="ic">📜</span> Recent Detections</div>
+
+    <div class="helper-card">
+      <div class="emoji">✅</div>
+      <div class="t">Extension active</div>
+      <div class="d" id="extension-status">PhishShield is running in this browser and auto-scanning pages you visit.</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div id="dashboard-top">
+    <div class="welcome">
+      <div>
+        <h1 id="greeting-h1">Hello 👋</h1>
+        <p>Here's what PhishShield has caught across connected browsers.</p>
+      </div>
+      <button class="cta-btn" id="manual-check-btn">＋ Check a URL manually</button>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat total">
+        <div class="top-row"><span class="lbl">Links checked</span><span class="badge">📊</span></div>
+        <div class="val" id="stat-total">0</div>
+        <div class="sub">since this session started</div>
+      </div>
+      <div class="stat safe">
+        <div class="top-row"><span class="lbl">Looked safe</span><span class="badge">✅</span></div>
+        <div class="val" id="stat-safe">0</div>
+        <div class="sub" id="stat-safe-pct">—</div>
+      </div>
+      <div class="stat warn">
+        <div class="top-row"><span class="lbl">Suspicious</span><span class="badge">👀</span></div>
+        <div class="val" id="stat-suspicious">0</div>
+        <div class="sub">unusual patterns detected</div>
+      </div>
+      <div class="stat danger">
+        <div class="top-row"><span class="lbl">Phishing blocked</span><span class="badge">⛔</span></div>
+        <div class="val" id="stat-phishing">0</div>
+        <div class="sub">warnings shown to users</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-hd">
+        <h2>Latest detection</h2>
+        <span class="meta" id="latest-time">—</span>
+      </div>
+      <div id="latest-content">
+        <p class="empty-state">No scans yet — paste a URL above and click Scan URL to test.</p>
+      </div>
+    </div>
+    </div>
+
+    <div class="section-list">
+      <!-- Vendor analysis -->
+      <div class="section-block" id="section-vendor">
+        <div class="section-block-hd">
+          <span class="ic">🛡️</span>
+          <h2>Security vendor analysis</h2>
+          <span class="meta" id="vendor-meta">—</span>
+        </div>
+        <div class="engine-grid" id="vendor-grid">
+          <p class="empty-state">Scan a URL to see vendor results here.</p>
+        </div>
+        <div class="empty-tip" id="vendor-tip" style="display:none;"></div>
+      </div>
+
+      <!-- Details -->
+      <div class="section-block" id="section-details">
+        <div class="section-block-hd">
+          <span class="ic">📄</span>
+          <h2>Details</h2>
+        </div>
+        <div id="details-content">
+          <p class="empty-state">Scan a URL to see its details here.</p>
+        </div>
+      </div>
+
+      <!-- Relations -->
+      <div class="section-block" id="section-relations">
+        <div class="section-block-hd">
+          <span class="ic">🕸️</span>
+          <h2>Relations</h2>
+        </div>
+        <div id="relations-content">
+          <p class="empty-state">Scan a URL to see related detections here.</p>
+        </div>
+      </div>
+
+      <!-- Community -->
+      <div class="section-block" id="section-community">
+        <div class="section-block-hd">
+          <span class="ic">💬</span>
+          <h2>Community</h2>
+        </div>
+        <div class="community-summary">
+          <div class="vote-box up"><div class="n" id="vote-up">0</div><div class="l">said safe</div></div>
+          <div class="vote-divider"></div>
+          <div class="vote-box down"><div class="n" id="vote-down">0</div><div class="l">said phishing</div></div>
+          <div class="vote-divider"></div>
+          <div class="community-note">Feedback from people who encountered this link.</div>
+        </div>
+        <div id="comment-list"></div>
+        <div class="comment-form">
+          <input id="comment-input" placeholder="Add a comment…" />
+          <button id="comment-btn">Post</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="section-recent">
+      <div class="panel-hd">
+        <h2>Recent detections</h2>
+        <span class="meta">from all connected browser extensions</span>
+      </div>
+      <table>
+        <thead>
+          <tr><th>URL</th><th>Risk score</th><th>Time</th><th>Result</th></tr>
+        </thead>
+        <tbody id="detections-table-body">
+          <tr><td colspan="4" class="empty-state">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="lib/lib/scanner.js"></script>
+<script src="lib/ui.js"></script>
+<script src="js/api.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/theme.js"></script>
+</body>
+</html>
