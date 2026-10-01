@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PHISHSHIELD - AI Phishing Protection</title>
+
+  <!-- Google Fonts & Font Awesome Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Main stylesheet (keep style.css and background.png in the same folder as this file) -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Header / Navigation -->
+  <nav class="navbar">
+    <div class="brand">
+      <img src="logo.png" alt="PHISHSHIELD Logo" class="brand-logo">
+      <div class="brand-text">
+        <h2>PHISHSHIELD</h2>
+        <span>AI Phishing Protection</span>
+      </div>
+    </div>
+
+    <div class="nav-controls">
+      <!-- Dark Mode Toggle Button -->
+      <button class="theme-toggle-btn" id="themeToggleBtn" title="Toggle Dark/Light Mode">
+        <i class="fa-solid fa-moon" id="themeIcon"></i>
+      </button>
+
+      <button class="btn-chrome">
+        <i class="fa-brands fa-chrome"></i> Add to Chrome
+      </button>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <main class="hero-container">
+
+    <!-- Left Column: Content -->
+    <div class="hero-left">
+      <div class="badge-tag">
+        <i class="fa-solid fa-bolt"></i> AI-POWERED WEB PROTECTION
+      </div>
+      <h1 class="hero-title">Browse the Web.<br><span>Stay Protected.</span></h1>
+      <p class="hero-desc">
+        PHISHSHIELD uses AI-powered phishing URL detection to identify suspicious websites and protect you before you become a victim.
+      </p>
+
+      <div class="cta-group">
+        <button class="btn-chrome">
+          <i class="fa-brands fa-chrome"></i> Add to Chrome
+        </button>
+        <button class="btn-secondary" id="openModalBtn">
+          Learn How It Works &rarr;
+        </button>
+      </div>
+
+      <div class="features-list">
+        <div class="feature-item">
+          <i class="fa-solid fa-check"></i> Real-Time Detection
+        </div>
+        <div class="feature-item">
+          <i class="fa-solid fa-check"></i> AI-Powered Analysis
+        </div>
+        <div class="feature-item">
+          <i class="fa-solid fa-check"></i> Browser Protection
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: 3D Visual Mockup -->
+    <div class="hero-right">
+
+      <!-- Everything inside .scene is tilted in 3D -->
+      <div class="scene" id="scene">
+
+        <!-- Mock Browser Background -->
+        <div class="browser-mockup">
+          <div class="browser-header">
+            <div class="dots">
+              <div class="dot"></div>
+              <div class="dot"></div>
+              <div class="dot"></div>
+            </div>
+            <div class="search-bar">
+              <i class="fa-solid fa-lock" style="color: #EAB308;"></i>
+              https://example-login.com
+            </div>
+          </div>
+          <div class="mock-page-content">
+            <div class="mock-input"></div>
+            <div class="mock-input"></div>
+            <div class="mock-btn"></div>
+          </div>
+        </div>
+
+        <!-- Floating badges (different depths) -->
+        <div class="float-badge badge-scan">
+          <span class="pulse-dot"></span> Scanning URL...
+        </div>
+        <div class="float-badge badge-safe">
+          <i class="fa-solid fa-shield-halved"></i> Safe site verified
+        </div>
+
+        <!-- Extension Popup Card -->
+        <div class="popup-widget">
+          <div class="popup-header">
+            <img src="logo.png" alt="PHISHSHIELD Logo" class="popup-logo">
+            <div>
+              <h4>PHISHSHIELD</h4>
+              <p>AI Web Protection</p>
+            </div>
+          </div>
+
+          <div class="alert-box">
+            <div class="alert-title">
+              <i class="fa-solid fa-triangle-exclamation"></i> Phishing Detected
+            </div>
+            <div class="alert-desc">This website may be unsafe.</div>
+          </div>
+
+          <div class="analysis-section">
+            <div class="analysis-label">URL ANALYSIS</div>
+            <div class="analysis-url">https://example-login.com</div>
+          </div>
+
+          <div class="risk-score">
+            <span>Risk Score</span>
+            <span class="score-value">92%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill"></div>
+          </div>
+
+          <button class="btn-block">
+            <i class="fa-solid fa-ban"></i> Block Website
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Soft shadow on the floor under the scene -->
+      <div class="scene-floor"></div>
+
+    </div>
+
+  </main>
+
+  <!-- How It Works Modal -->
+  <div class="modal-overlay" id="howItWorksModal">
+    <div class="modal-card">
+      <button class="modal-close" id="closeModalBtn">&times;</button>
+      <h3 class="modal-title">🔐 How PHISHSHIELD Works</h3>
+
+      <div class="steps-container">
+
+        <!-- Step 1 -->
+        <div class="step-item">
+          <div class="step-title">1. User visits a website</div>
+          <div class="step-desc">The user opens a website using their browser.</div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="step-item">
+          <div class="step-title">2. Browser Extension detects the URL</div>
+          <div class="step-desc">The PHISHSHIELD browser extension captures the website URL.</div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="step-item">
+          <div class="step-title">3. URL Analysis</div>
+          <div class="step-desc">The system checks the URL based on predefined rules, such as:</div>
+          <ul class="rules-list">
+            <li>Suspicious keywords</li>
+            <li>Unusual domain names</li>
+            <li>Very long URLs</li>
+            <li>IP addresses used instead of domains</li>
+            <li>HTTPS/security information</li>
+            <li>Suspicious URL structures</li>
+          </ul>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="step-item">
+          <div class="step-title">4. Risk Detection</div>
+          <div class="step-desc">The system classifies the URL into different categories:</div>
+          <div class="categories-list">
+            <div>🟢 <strong>SAFE</strong> — No significant suspicious characteristics detected.</div>
+            <div>🟡 <strong>SUSPICIOUS</strong> — Some characteristics may indicate a phishing attempt.</div>
+            <div>🔴 <strong>PHISHING / DANGEROUS</strong> — The URL matches multiple phishing indicators.</div>
+          </div>
+        </div>
+
+        <!-- Step 5 -->
+        <div class="step-item">
+          <div class="step-title">5. User Warning</div>
+          <div class="step-desc">If the website is considered dangerous, PHISHSHIELD displays a warning to the user:</div>
+          <div class="warning-badge">⚠️ Warning: This website may be a phishing site.</div>
+          <div class="step-desc" style="margin-top: 6px;">The user can then choose whether to leave the website.</div>
+        </div>
+
+        <!-- Step 6 -->
+        <div class="step-item">
+          <div class="step-title">6. AI Explanation</div>
+          <div class="step-desc">The AI component is used to generate a simple explanation of the detection result.</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Section -->
+  <script>
+    // --- 1. How It Works Modal Logic ---
+    const openBtn = document.getElementById('openModalBtn');
+    const closeBtn = document.getElementById('closeModalBtn');
+    const modal = document.getElementById('howItWorksModal');
+
+    openBtn.addEventListener('click', () => modal.classList.add('active'));
+    closeBtn.addEventListener('click', () => modal.classList.remove('active'));
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.classList.remove('active');
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') modal.classList.remove('active');
+    });
+
+    // --- 2. Dark Mode Toggle Logic ---
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const themeIcon = document.getElementById('themeIcon');
+
+    // Apply the theme to <body> and <html> (the background layers use both)
+    function applyTheme(isDark) {
+      document.body.classList.toggle('dark-theme', isDark);
+      document.documentElement.classList.toggle('dark-theme', isDark);
+      if (isDark) {
+        themeIcon.classList.replace('fa-moon', 'fa-sun');
+      } else {
+        themeIcon.classList.replace('fa-sun', 'fa-moon');
+      }
+    }
+
+    // Semak tetapan yang disimpan dalam localStorage
+    applyTheme(localStorage.getItem('theme') === 'dark');
+
+    themeToggleBtn.addEventListener('click', () => {
+      const isDark = !document.body.classList.contains('dark-theme');
+      applyTheme(isDark);
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    });
+
+    // --- 3. Smooth 3D tilt + background parallax (follows the mouse) ---
+    const scene = document.getElementById('scene');
+    const motionOK = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const isSmall = () => window.matchMedia('(max-width: 900px)').matches;
+
+    if (scene && motionOK) {
+      const BASE_X = 6;    // resting tilt (same as CSS)
+      const BASE_Y = -14;
+      let targetX = 0, targetY = 0;   // where the mouse is (-1 .. 1)
+      let currentX = 0, currentY = 0; // smoothed value
+      let raf = null;
+
+      function frame() {
+        // ease toward the target so movement stays smooth
+        currentX += (targetX - currentX) * 0.08;
+        currentY += (targetY - currentY) * 0.08;
+
+        document.documentElement.style.setProperty('--mx', currentX.toFixed(3));
+        document.documentElement.style.setProperty('--my', currentY.toFixed(3));
+
+        if (isSmall()) {
+          scene.style.transform = '';
+        } else {
+          scene.style.transform =
+            'rotateX(' + (BASE_X - currentY * 8) + 'deg) ' +
+            'rotateY(' + (BASE_Y + currentX * 10) + 'deg)';
+        }
+
+        const moving = Math.abs(targetX - currentX) > 0.001 || Math.abs(targetY - currentY) > 0.001;
+        raf = moving ? requestAnimationFrame(frame) : null;
+      }
+
+      function start() {
+        if (!raf) raf = requestAnimationFrame(frame);
+      }
+
+      window.addEventListener('mousemove', (e) => {
+        targetX = (e.clientX / window.innerWidth - 0.5) * 2;
+        targetY = (e.clientY / window.innerHeight - 0.5) * 2;
+        start();
+      });
+
+      // glide back to the resting position when the mouse leaves the page
+      document.addEventListener('mouseleave', () => {
+        targetX = 0;
+        targetY = 0;
+        start();
+      });
+    }
+  </script>
+
+</body>
+</html>

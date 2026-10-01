@@ -1,5 +1,8 @@
 # Secrets — never commit your real API keys
+.env
+*.env
 backend/.env
+.claude/
 
 # Python
 __pycache__/

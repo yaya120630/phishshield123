@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PhishShield</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="logo">
+      <img src="icons/icon128.png" alt="PhishShield logo">
+    </div>
+    <div class="name-block">
+      <div class="name">PHISHSHIELD</div>
+      <div class="tagline">AI-POWERED PHISHING URL DETECTION</div>
+    </div>
+    <button class="theme-toggle" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode">🌙</button>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-target="scanner">Scanner</button>
+    <button class="tab" data-target="dashboard">Dashboard</button>
+  </div>
+</header>
+
+<div class="screens">
+
+  <!-- SCREEN 1: SCANNER -->
+  <section class="screen active" id="scanner">
+
+    <div class="url-card">
+      <div class="url-label">Detected URL</div>
+      <div class="url-value" id="detectedUrl">Loading...</div>
+    </div>
+
+    <div id="loadingState">Scanning...</div>
+
+    <div class="status-banner result-badge safe" id="resultBadge" style="display:none;">
+      <div class="status-icon" id="resultIcon">✓</div>
+      <span class="result-status safe" id="verdictDisplay">Safe</span>
+    </div>
+
+    <div id="resultSection" style="display:none;">
+      <div class="status-note" id="warningMessage">This URL appears to be safe.</div>
+      <div class="confidence-row" style="margin-top:12px;"><span id="confidenceLabel">Confidence</span>: <b id="confidenceValue">0%</b></div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card"><b id="scannedCount">0</b><span>SCANNED TODAY</span></div>
+      <div class="stat-card threats"><b id="threatsBlocked">0</b><span>THREATS BLOCKED</span></div>
+      <div class="stat-card safe"><b id="safeSites">0</b><span>SAFE SITES</span></div>
+    </div>
+
+    <div class="callout">
+      <div class="ico">🔒</div>
+      <div>
+        <b>SECURITY AWARENESS</b>
+        <p>A padlock icon only means the connection is encrypted — it says nothing about whether the site itself is genuine. Always read the actual domain name.</p>
+      </div>
+    </div>
+
+    <div class="dual-btn">
+      <button class="primary" id="dashboardBtn">📈 Open Full Dashboard</button>
+      <button class="secondary" id="rescanBtn">🔄 Rescan Current URL</button>
+    </div>
+  </section>
+
+  <!-- SCREEN 2: DASHBOARD (in-popup summary, mirrors the full dashboard) -->
+  <section class="screen" id="dashboard">
+    <div>
+      <h3 class="dash-title">Scan Summary</h3>
+      <p class="dash-sub">Live summary from your full dashboard</p>
+    </div>
+
+    <div class="donut-wrap">
+      <div class="donut" id="miniDonut">
+        <div class="donut-hole"><b id="miniDonutTotal">0</b><span>SITES</span></div>
+      </div>
+      <div class="legend">
+        <div class="leg-row"><span class="leg-dot" style="background:var(--safe)"></span> Safe <b id="miniSafePct">0%</b></div>
+        <div class="leg-row"><span class="leg-dot" style="background:var(--suspicious)"></span> Suspicious <b id="miniSusPct">0%</b></div>
+        <div class="leg-row"><span class="leg-dot" style="background:var(--phishing)"></span> Phishing <b id="miniPhishPct">0%</b></div>
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card safe"><b id="miniSafeCount">0</b><span>SAFE</span></div>
+      <div class="stat-card suspicious"><b id="miniFlaggedCount">0</b><span>SUSPICIOUS</span></div>
+      <div class="stat-card threats"><b id="miniBlockedCount">0</b><span>PHISHING</span></div>
+    </div>
+
+    <div id="detailsContainer">
+      <div class="mini-latest-label" style="margin-bottom:8px;">LATEST DETECTION</div>
+      <div class="detail-row"><span class="detail-label">URL</span><span id="detailUrl">-</span></div>
+      <div class="detail-row"><span class="detail-label">Verdict</span><span class="detail-value" id="detailVerdict">-</span></div>
+      <div class="detail-row"><span class="detail-label">Confidence</span><span id="detailConfidence">-</span></div>
+      <div class="detail-row"><span class="detail-label">Risk score</span><span id="detailRiskScore">-</span></div>
+      <div style="margin-top:8px;">
+        <div class="detail-label" style="margin-bottom:4px;">Indicators</div>
+        <ul id="detailIndicators"></ul>
+      </div>
+      <div id="detailTips"></div>
+    </div>
+
+    <button class="open-full-dash-btn" id="dashboardBtn2"> OPEN FULL DASHBOARD 📈 </button>
+  </section>
+
+</div>
+
+<script src="js/config.js"></script>
+<script src="lib/lib/scanner.js"></script>
+<script src="lib/scanner.js"></script>
+<script src="js/popup.js"></script>
+<script src="js/theme.js"></script>
+</body>
+</html>

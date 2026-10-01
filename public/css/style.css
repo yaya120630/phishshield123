@@ -1,0 +1,923 @@
+/* ==========================================================================
+   1. COLOR VARIABLES (LIGHT MODE & DARK MODE)
+   ========================================================================== */
+:root {
+  /* Light Mode Variables */
+  --bg-main: #F4F6FB;
+  --card-bg: #FFFFFF;
+  --text-dark: #1E293B;
+  --text-muted: #56657C;
+  --border-color: #E2E8F0;
+  --header-bg: #F8FAFC;
+
+  /* Primary & Accent Colors */
+  --primary: #4C6EF5;
+  --primary-hover: #3B5BDB;
+  --primary-shadow: #3450C9;   /* solid edge under 3D buttons */
+  --primary-light: #EDF2FF;
+  --danger: #FA5252;
+  --danger-bg: #FFF5F5;
+
+  /* Radii */
+  --radius-lg: 16px;
+  --radius-md: 10px;
+
+  /* Layered shadows = soft depth */
+  --shadow-sm: 0 1px 2px rgba(30, 41, 90, 0.05), 0 8px 18px -6px rgba(60, 80, 180, 0.14);
+  --shadow-md: 0 2px 4px rgba(30, 41, 90, 0.05), 0 14px 28px -8px rgba(60, 80, 180, 0.18);
+  --shadow-3d: 0 2px 4px rgba(30, 41, 90, 0.06),
+               0 18px 32px -8px rgba(60, 80, 180, 0.22),
+               0 48px 80px -24px rgba(60, 80, 180, 0.30);
+}
+
+/* Dark Mode Theme Variables */
+body.dark-theme {
+  --bg-main: #0F172A;        /* Dark Navy Blue */
+  --card-bg: #1E293B;        /* Lighter Dark Blue */
+  --text-dark: #F8FAFC;      /* Off-White Text */
+  --text-muted: #B0BDD2;     /* Soft Gray Text */
+  --border-color: #334155;   /* Dark Border */
+  --header-bg: #182234;      /* Dark Header Background */
+  --primary-light: #1E2952;  /* Darker Tint Blue */
+  --danger-bg: #3D1E28;      /* Darker Danger Background */
+  --primary-shadow: #2A3FA0;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 18px -6px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.3), 0 14px 28px -8px rgba(0, 0, 0, 0.5);
+  --shadow-3d: 0 2px 4px rgba(0, 0, 0, 0.35),
+               0 20px 40px -10px rgba(0, 0, 0, 0.55),
+               0 50px 90px -30px rgba(0, 0, 0, 0.65);
+}
+
+/* ==========================================================================
+   2. BACKGROUND (image in BOTH themes)
+   Light mode: background-light.jpg (a pastel version of the artwork) with
+               soft glowing orbs drifting on top.
+   Dark mode:  background.png, blurred slightly and darkened, with an extra
+               shadow on the left so the text stays sharp. Gentle mouse parallax.
+   The two layers cross-fade when you switch theme.
+   ========================================================================== */
+body {
+  --mx: 0;   /* mouse position -1 .. 1 (set by JavaScript) */
+  --my: 0;
+}
+
+/* Light layer */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -10%;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(248, 250, 255, 0.60) 0%, rgba(248, 250, 255, 0.30) 40%, transparent 72%),
+    radial-gradient(40% 45% at 15% 20%, rgba(76, 110, 245, 0.16), transparent 70%),
+    radial-gradient(35% 40% at 85% 15%, rgba(167, 139, 250, 0.18), transparent 70%),
+    radial-gradient(45% 50% at 75% 85%, rgba(56, 189, 248, 0.12), transparent 70%),
+    url("background-light.jpg") center / cover no-repeat,
+    linear-gradient(135deg, #F8FAFF 0%, #EEF2FF 50%, #F7F0FF 100%);
+  opacity: 1;
+  transition: opacity 0.6s ease;
+  animation: orbsFloat 22s ease-in-out infinite alternate;
+}
+
+body.dark-theme::before {
+  opacity: 0;
+}
+
+@keyframes orbsFloat {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(-1.5%, 1%, 0) scale(1.03); }
+  100% { transform: translate3d(1.5%, -1%, 0) scale(1.02); }
+}
+
+/* Dark layer */
+body::after {
+  content: "";
+  position: fixed;
+  inset: -4%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(8, 12, 30, 0.80) 0%, rgba(8, 12, 30, 0.58) 32%, rgba(8, 12, 30, 0.20) 62%, transparent 85%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.34), rgba(15, 23, 42, 0.52)),
+    url("background.png") center / cover no-repeat;
+  filter: blur(2px);
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  transform: translate3d(calc(var(--mx) * -14px), calc(var(--my) * -10px), 0) scale(1.02);
+  will-change: transform;
+}
+
+body.dark-theme::after {
+  opacity: 1;
+}
+
+/* ==========================================================================
+   3. GENERAL STYLES
+   ========================================================================== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-dark);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Navbar */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 8%;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brand-logo {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 10px rgba(76, 110, 245, 0.35));
+}
+
+.brand-text h2 {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-dark);
+  line-height: 1.1;
+  letter-spacing: 0.5px;
+}
+
+.brand-text span {
+  font-size: 11px;
+  color: var(--primary);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.nav-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Theme Toggle Button */
+.theme-toggle-btn {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-dark);
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s ease, box-shadow 0.2s ease,
+              background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.theme-toggle-btn:active {
+  transform: translateY(1px);
+}
+
+/* 3D "pressable" primary button */
+.btn-chrome {
+  background: linear-gradient(180deg, #5F80FA 0%, var(--primary) 100%);
+  color: white;
+  border: none;
+  padding: 12px 22px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 0 var(--primary-shadow), 0 12px 22px -4px rgba(76, 110, 245, 0.45);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.2s ease;
+}
+
+.btn-chrome:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.06);
+  box-shadow: 0 6px 0 var(--primary-shadow), 0 18px 28px -6px rgba(76, 110, 245, 0.5);
+}
+
+.btn-chrome:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--primary-shadow), 0 4px 10px -2px rgba(76, 110, 245, 0.4);
+}
+
+/* ==========================================================================
+   4. HERO SECTION
+   ========================================================================== */
+.hero-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 40px 8% 80px 8%;
+  gap: 50px;
+  flex: 1;
+}
+
+.hero-left {
+  max-width: 520px;
+}
+
+.badge-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--primary-light);
+  color: var(--primary);
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.hero-title {
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 16px;
+  color: var(--text-dark);
+}
+
+.hero-title span {
+  background: linear-gradient(90deg, var(--primary), #8B5CF6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hero-desc {
+  font-size: 15px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-bottom: 32px;
+}
+
+.cta-group {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 36px;
+}
+
+.btn-secondary {
+  background-color: var(--card-bg);
+  color: var(--text-dark);
+  border: 1px solid var(--border-color);
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 0 var(--border-color), var(--shadow-sm);
+  transition: transform 0.15s ease, box-shadow 0.15s ease,
+              background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+.btn-secondary:hover {
+  background-color: var(--primary-light);
+  color: var(--primary);
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 var(--border-color), var(--shadow-md);
+}
+
+.btn-secondary:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--border-color), var(--shadow-sm);
+}
+
+.features-list {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.feature-item i {
+  color: var(--primary);
+  background: var(--primary-light);
+  padding: 4px;
+  border-radius: 50%;
+}
+
+/* --------------------------------------------------------------------------
+   Dark mode: clearer text on top of the image
+   -------------------------------------------------------------------------- */
+body.dark-theme .brand-text h2,
+body.dark-theme .hero-title {
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.55);
+}
+
+body.dark-theme .brand-text span {
+  color: #A5B8FF;
+}
+
+body.dark-theme .badge-tag {
+  background-color: rgba(30, 41, 90, 0.92);
+  color: #B4C4FF;
+  border: 1px solid rgba(165, 184, 255, 0.35);
+}
+
+body.dark-theme .hero-title span {
+  background: linear-gradient(90deg, #8FA8FF, #C4A8FF);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.45));
+}
+
+body.dark-theme .hero-desc {
+  color: #D5DDEA;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.7);
+}
+
+body.dark-theme .feature-item {
+  color: #F1F5F9;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7);
+}
+
+body.dark-theme .feature-item i {
+  color: #B4C4FF;
+  background: rgba(30, 41, 90, 0.92);
+}
+
+/* ==========================================================================
+   5. 3D PREVIEW SCENE (right side)
+   .hero-right gives the perspective, .scene is tilted in 3D and JavaScript
+   tilts it a little more when the mouse moves. Everything inside floats at
+   a different depth (translateZ).
+   ========================================================================== */
+.hero-right {
+  position: relative;
+  width: 100%;
+  max-width: 580px;
+  perspective: 1600px;
+  perspective-origin: 20% 40%;
+}
+
+.scene {
+  position: relative;
+  transform-style: preserve-3d;
+  transform: rotateX(6deg) rotateY(-14deg);
+  will-change: transform;
+}
+
+/* soft shadow on the "floor" under the scene */
+.scene-floor {
+  position: absolute;
+  left: 10%;
+  right: 6%;
+  bottom: -46px;
+  height: 36px;
+  background: radial-gradient(ellipse at center, rgba(50, 70, 170, 0.35), transparent 70%);
+  filter: blur(14px);
+  pointer-events: none;
+}
+
+body.dark-theme .scene-floor {
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.6), transparent 70%);
+}
+
+.browser-mockup {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3d);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  padding-bottom: 40px;
+}
+
+.browser-header {
+  background: var(--header-bg);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.dots {
+  display: flex;
+  gap: 6px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border-color);
+}
+
+.search-bar {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  padding: 6px 14px;
+  border-radius: 20px;
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mock-page-content {
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  opacity: 0.2;
+}
+
+.mock-input {
+  height: 36px;
+  background: var(--text-muted);
+  border-radius: 6px;
+  width: 100%;
+}
+
+.mock-btn {
+  height: 36px;
+  background: var(--primary);
+  border-radius: 6px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* Floating animation shared by everything that hovers above the browser */
+@keyframes floatY {
+  0%, 100% { transform: translateZ(var(--z)) translateY(0); }
+  50%      { transform: translateZ(var(--z)) translateY(-10px); }
+}
+
+/* Popup Floating Widget (closest to the viewer) */
+.popup-widget {
+  --z: 90px;
+  position: absolute;
+  top: 40px;
+  right: -20px;
+  width: 320px;
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3d);
+  border: 1px solid var(--border-color);
+  padding: 20px;
+  transform: translateZ(var(--z));
+  animation: floatY 6s ease-in-out infinite;
+}
+
+.popup-widget:hover {
+  animation-play-state: paused;
+}
+
+/* Small floating badges at different depths */
+.float-badge {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dark);
+  box-shadow: var(--shadow-3d);
+  white-space: nowrap;
+  transform: translateZ(var(--z));
+}
+
+.badge-scan {
+  --z: 60px;
+  top: -24px;
+  left: 36px;
+  animation: floatY 7s ease-in-out -2s infinite;
+}
+
+.badge-safe {
+  --z: 120px;
+  bottom: -24px;
+  left: -20px;
+  animation: floatY 8s ease-in-out -4s infinite;
+}
+
+.badge-safe i {
+  color: #22C55E;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  animation: pulse 1.8s ease-out infinite;
+}
+
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(76, 110, 245, 0.55); }
+  100% { box-shadow: 0 0 0 10px rgba(76, 110, 245, 0); }
+}
+
+.popup-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.popup-logo {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+}
+
+.popup-header h4 {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-dark);
+}
+
+.popup-header p {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.alert-box {
+  background-color: var(--danger-bg);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.alert-title {
+  color: var(--danger);
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.alert-desc {
+  color: var(--danger);
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.analysis-section {
+  margin-bottom: 16px;
+}
+
+.analysis-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.analysis-url {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dark);
+  word-break: break-all;
+}
+
+.risk-score {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 12px;
+  margin-bottom: 6px;
+  color: var(--text-dark);
+}
+
+.score-value {
+  color: var(--danger);
+}
+
+.progress-bar {
+  height: 6px;
+  background: var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.progress-fill {
+  width: 92%;
+  height: 100%;
+  background: linear-gradient(90deg, #FF8787, var(--danger));
+  border-radius: 10px;
+}
+
+.btn-block {
+  width: 100%;
+  background: linear-gradient(180deg, #FF6B6B 0%, var(--danger) 100%);
+  color: white;
+  border: none;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 3px 0 #D93A3A, 0 10px 18px -4px rgba(250, 82, 82, 0.45);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.2s ease;
+}
+
+.btn-block:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+.btn-block:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #D93A3A, 0 4px 8px -2px rgba(250, 82, 82, 0.4);
+}
+
+/* ==========================================================================
+   6. MODAL / POPUP (HOW IT WORKS)
+   ========================================================================== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(8, 12, 30, 0.6);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.35s ease, visibility 0.35s ease;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal-card {
+  background: var(--card-bg);
+  width: 90%;
+  max-width: 650px;
+  max-height: 85vh;
+  overflow-y: auto;
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  box-shadow: var(--shadow-3d);
+  border: 1px solid var(--border-color);
+  position: relative;
+  /* flips up in 3D when opened */
+  transform: perspective(1000px) rotateX(14deg) translateY(30px) scale(0.96);
+  transform-origin: 50% 100%;
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1),
+              background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.modal-overlay.active .modal-card {
+  transform: perspective(1000px) rotateX(0deg) translateY(0) scale(1);
+}
+
+.modal-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: var(--bg-main);
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 16px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
+  color: var(--text-dark);
+  background: var(--border-color);
+}
+
+.modal-title {
+  font-size: 22px;
+  font-weight: 800;
+  margin-bottom: 24px;
+  color: var(--text-dark);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.steps-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.step-item {
+  background: var(--bg-main);
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  transition: transform 0.25s ease, box-shadow 0.25s ease,
+              background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.step-item:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+
+.step-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 6px;
+}
+
+.step-desc {
+  font-size: 13.5px;
+  color: var(--text-dark);
+  line-height: 1.5;
+}
+
+.rules-list {
+  margin-top: 8px;
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.categories-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-dark);
+}
+
+.warning-badge {
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 6px;
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+/* ==========================================================================
+   7. RESPONSIVE DESIGN
+   ========================================================================== */
+@media (max-width: 1100px) {
+  .float-badge {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .hero-container {
+    flex-direction: column;
+  }
+  .hero-right {
+    max-width: 100%;
+    perspective: none;
+  }
+  .scene {
+    transform: none !important;   /* no 3D tilt on small screens */
+  }
+  .popup-widget {
+    position: relative;
+    top: 0;
+    right: 0;
+    width: 100%;
+    margin-top: -60px;
+    transform: none;
+    animation: none;
+  }
+  .scene-floor {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   8. DARK MODE TEXT CLARITY
+   Brighter colours + a soft shadow so text stays readable over the image.
+   ========================================================================== */
+body.dark-theme .hero-title,
+body.dark-theme .hero-desc,
+body.dark-theme .feature-item,
+body.dark-theme .brand-text h2 {
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.65);
+}
+
+body.dark-theme .hero-desc {
+  color: #D3DCEC;
+}
+
+body.dark-theme .hero-title span {
+  background: linear-gradient(90deg, #8FA5FF, #C9A8FF);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.55));
+}
+
+body.dark-theme .brand-text span {
+  color: #A9BAFF;
+}
+
+body.dark-theme .badge-tag {
+  background: rgba(76, 110, 245, 0.30);
+  color: #C3CFFF;
+  border: 1px solid rgba(143, 165, 255, 0.35);
+}
+
+body.dark-theme .feature-item i {
+  background: rgba(76, 110, 245, 0.35);
+  color: #C3CFFF;
+}
+
+/* ==========================================================================
+   8. REDUCED MOTION (accessibility)
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}
