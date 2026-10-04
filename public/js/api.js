@@ -52,8 +52,10 @@
     var headers = { 'Content-Type': 'application/json' };
     if (cfg.API_KEY) headers['X-PhishShield-Key'] = cfg.API_KEY;
 
+    // Render's free tier sleeps and can take 30-60s to wake on the first
+    // request, so allow 60s before falling back to the local heuristic.
     var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-    var t = ctrl ? setTimeout(function () { ctrl.abort(); }, 10000) : null;
+    var t = ctrl ? setTimeout(function () { ctrl.abort(); }, 60000) : null;
 
     fetch(base + '/api/detect', {
       method: 'POST', headers: headers, body: JSON.stringify({ url: url }),
