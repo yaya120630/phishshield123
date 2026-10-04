@@ -1,8 +1,8 @@
 # PhishShield — Backend Setup
 
-Your `phishshield-extension` folder already expected a backend at
-`http://127.0.0.1:8000/api/detect` (see the comments in `background.js`)
-— it just wasn't in the zip. This adds that backend, wired up to
+The `public/` folder (the extension + web dashboard) talks to a backend
+at `http://127.0.0.1:8000/api/detect` (see the comments in
+`public/js/background.js`). The backend lives in `backend/`, wired up to
 VirusTotal and Gemini.
 
 ## 1. Get API keys
@@ -34,7 +34,7 @@ Leave this running — it's what the extension talks to. Visit
 ## 4. Load the extension in Chrome
 
 1. `chrome://extensions` → enable **Developer mode** (top right)
-2. **Load unpacked** → select the `phishshield-extension` folder
+2. **Load unpacked** → select the `public` folder
 3. Browse normally — PhishShield auto-scans pages on navigation and
    pops an alert on phishing/suspicious sites. Use the popup or the
    dashboard's "Scan URL" box to check a link manually.
@@ -63,9 +63,11 @@ thresholds.
   automatically) — the app keeps working, just less accurately.
 - VirusTotal's free tier is rate-limited; if you hit it, `vt_positives`
   etc. come back as `null` for that scan and the other signals carry it.
-- CORS is wide open (`allow_origins=["*"]`) since this is meant to run
-  locally for your own extension — tighten it if you ever deploy this
-  publicly.
+- CORS allows the Firebase Hosting origins plus `localhost`/`127.0.0.1`
+  (see `backend/app/main.py`). The Chrome extension sends from a
+  `chrome-extension://` origin, which isn't subject to that list, so it
+  works regardless. If you add a custom domain for the web dashboard, add
+  it via the `CORS_ALLOW_ORIGINS` env var.
 
 ## 5. Sharing this with someone else / putting it on Chrome for real
 

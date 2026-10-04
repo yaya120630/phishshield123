@@ -1,5 +1,5 @@
 console.log('PhishShield popup loading...');
-
+ 
 // If anything crashes, show the reason inside the popup so it is never a silent "stuck" screen.
 function psShowFatal(text) {
     try {
@@ -17,7 +17,7 @@ window.addEventListener('error', function (ev) {
 window.addEventListener('unhandledrejection', function (ev) {
     psShowFatal(ev && ev.reason && ev.reason.message ? ev.reason.message : 'unknown error');
 });
-
+ 
 // ===== TAB SWITCHING (independent safety net) =====
 // Uses event delegation at the top level so the Scanner/Dashboard tabs still
 // work even if some other part of this file throws an error while loading.
@@ -35,43 +35,32 @@ document.addEventListener('click', function (e) {
         console.error('Tab switch error:', err);
     }
 });
-
-
-
+ 
 // ===== LIVE SYNC =====
 // The popup, the full dashboard, and background.js's auto-scanner all
 // read/write the SAME chrome.storage.local keys ('history', 'stats').
-// That's the whole "sync" mechanism — no messages needed. This listener
-// fires the instant any of them writes, so if e.g. the full dashboard
-// (open in another tab) runs a scan, or background.js auto-scans a new
-// page, this popup's stats + mini dashboard update immediately too.
+// This listener fires the instant any of them writes, so the popup's
+// stats + mini dashboard update immediately too.
 try {
     chrome.storage.onChanged.addListener(function (changes, area) {
         if (area !== 'local') return;
-
+ 
         if (changes.stats) {
             updateStatsDisplay(changes.stats.newValue || { scanned: 0, threats: 0, safe: 0 });
         }
         if (changes.history) {
             renderMiniDashboard(changes.history.newValue || []);
         }
-        // The top verdict badge updates live as scans complete (e.g. the
-        // popup's own 2-second auto-scan of the current tab, which runs
-        // AFTER this listener is wired and can land after the Details
-        // panel was already opened with an older/different scan's data).
-        // Without this, "View Details" could keep showing a stale scan
-        // (even for a different URL) after the badge above it moves on.
         if (changes.currentScanData) {
-            // The details block lives in the Dashboard tab now; repaint
-            // it whenever the scan data changes so it's fresh the next
-            // time someone switches tabs (or if it's already open).
+            // The details block lives in the Dashboard tab; repaint it
+            // whenever the scan data changes so it is always fresh.
             populateDetails();
         }
     });
 } catch (error) {
     console.error('Error wiring storage sync listener:', error);
 }
-
+ 
 function psEscapeHtml(str) {
     return String(str == null ? '' : str)
         .replace(/&/g, '&amp;')
@@ -80,39 +69,33 @@ function psEscapeHtml(str) {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 }
-
+ 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded');
-
+ 
     checkElements();
     setupTabs();
     fixViewDetailsButton();
-
+ 
     // getCurrentTabUrl() first sets the "Detected URL" text, THEN decides
-    // whether to paint the stored lastScanResult — only if it's actually
-    // for THIS url. Previously loadLastScanResult() ran unconditionally
-    // and would briefly paint whatever URL was scanned last (even from a
-    // different site) as if it were this tab's result, until the 2s
-    // auto-scan below overwrote it.
+    // whether to paint the stored lastScanResult - only if it is actually
+    // for THIS url.
     getCurrentTabUrl(function(currentUrl) {
         chrome.storage.local.get(['lastScanResult'], function(result) {
             var stored = result && result.lastScanResult;
             if (stored && stored.url === currentUrl) {
                 updateResultDisplay(stored);
             }
-            // else: leave the "Scanning..." state as-is until the
-            // auto-scan below completes, rather than showing a
-            // mismatched previous result.
         });
     });
-
-    // If background.js already flagged this tab (badge set from the
-    // auto-scan on navigation), reflect that immediately instead of
-    // waiting for this popup's own rescan to finish.
+ 
+    // If background.js already flagged this tab, reflect that immediately
+    // instead of waiting for this popup's own rescan to finish.
     try {
         chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
             if (!tabs || !tabs[0]) return;
             chrome.runtime.sendMessage({ action: 'getTabVerdict', tabId: tabs[0].id }, function(res) {
+                if (chrome.runtime.lastError) return;
                 if (res && (res.status === 'phishing' || res.status === 'suspicious')) {
                     var badge = document.getElementById('resultBadge');
                     var section = document.getElementById('resultSection');
@@ -124,12 +107,11 @@ document.addEventListener('DOMContentLoaded', function() {
     } catch (error) {
         console.error('Error checking tab verdict:', error);
     }
-
+ 
     loadStats();
     loadMiniDashboard();
-
-    // Was a fixed 2s delay before scanning even started — now scans as
-    // soon as the tab URL is available (still deferred one tick so the
+ 
+    // Scan as soon as the tab URL is available (deferred one tick so the
     // "Detected URL" text has definitely been set first).
     setTimeout(function() {
         var urlEl = document.getElementById('detectedUrl');
@@ -141,29 +123,41 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Auto-scanning:', urlEl.textContent);
             scanUrl(urlEl.textContent);
         } else {
+            // Page cannot be scanned (chrome:// pages, new tab, etc.).
+            // Show a NEUTRAL state instead of the default green "Safe".
             var loadingEl = document.getElementById('loadingState');
             var noteEl = document.getElementById('warningMessage');
             var sectionEl = document.getElementById('resultSection');
+            var vEl = document.getElementById('verdictDisplay');
+            var bEl = document.getElementById('resultBadge');
+            var iEl = document.getElementById('resultIcon');
+            var cEl = document.getElementById('confidenceValue');
+            var clEl = document.getElementById('confidenceLabel');
             if (loadingEl) loadingEl.style.display = 'none';
+            if (vEl) { vEl.textContent = 'Not scanned'; vEl.className = 'result-status unknown'; }
+            if (bEl) { bEl.className = 'status-banner result-badge unknown'; bEl.style.display = 'flex'; }
+            if (iEl) iEl.textContent = '?';
+            if (clEl) clEl.textContent = 'Score';
+            if (cEl) cEl.textContent = '\u2013';
             if (noteEl) noteEl.textContent = 'This page cannot be scanned. Open a website (http or https) and try again.';
             if (sectionEl) sectionEl.style.display = 'block';
         }
     }, 150);
 });
-
+ 
 function setupTabs() {
     var tabs = document.querySelectorAll('.tab');
     var screens = document.querySelectorAll('.screen');
-
+ 
     tabs.forEach(function(tab) {
         tab.addEventListener('click', function() {
             tabs.forEach(function(t) { t.classList.remove('active'); });
             screens.forEach(function(s) { s.classList.remove('active'); });
-
+ 
             tab.classList.add('active');
             var target = document.getElementById(tab.dataset.target);
             if (target) target.classList.add('active');
-
+ 
             if (tab.dataset.target === 'dashboard') {
                 loadMiniDashboard();
                 populateDetails();
@@ -171,7 +165,7 @@ function setupTabs() {
         });
     });
 }
-
+ 
 function checkElements() {
     var elements = [
         'detectedUrl', 'verdictDisplay', 'confidenceValue',
@@ -182,28 +176,26 @@ function checkElements() {
         'detailUrl', 'detailVerdict', 'detailConfidence',
         'detailRiskScore', 'detailIndicators', 'detailTips'
     ];
-
+ 
     var missing = [];
     for (var i = 0; i < elements.length; i++) {
         if (!document.getElementById(elements[i])) {
             missing.push(elements[i]);
         }
     }
-
+ 
     if (missing.length > 0) {
         console.warn('Missing elements:', missing.join(', '));
     } else {
         console.log('All elements found');
     }
 }
-
+ 
 function fixViewDetailsButton() {
-    // The full details block (URL/Verdict/Confidence/Risk score/
-    // Indicators/tips) now lives in the Dashboard tab, not the Scanner
-    // tab. Paint it eagerly so it's ready the moment someone switches
-    // tabs — populateDetails() itself handles the "no scan yet" state.
+    // Paint the details block eagerly so it is ready the moment someone
+    // switches tabs - populateDetails() handles the "no scan yet" state.
     populateDetails();
-
+ 
     ['dashboardBtn', 'dashboardBtn2'].forEach(function(id) {
         var el = document.getElementById(id);
         if (el) {
@@ -212,7 +204,7 @@ function fixViewDetailsButton() {
             };
         }
     });
-
+ 
     var rescanBtn = document.getElementById('rescanBtn');
     if (rescanBtn) {
         rescanBtn.onclick = function() {
@@ -223,12 +215,25 @@ function fixViewDetailsButton() {
         };
     }
 }
-
+ 
+// If the active tab is PhishShield's own block page, return the ORIGINAL
+// blocked URL (stored in ?url=...) so the popup scans the real site.
+function psGetRealUrl(tabUrl) {
+    try {
+        var blockedBase = chrome.runtime.getURL('blocked.html');
+        if (tabUrl && tabUrl.indexOf(blockedBase) === 0) {
+            var original = new URL(tabUrl).searchParams.get('url');
+            if (original) return original;
+        }
+    } catch (e) { /* fall through to the tab's own URL */ }
+    return tabUrl;
+}
+ 
 function getCurrentTabUrl(callback) {
     try {
         chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
             if (tabs && tabs[0]) {
-                var url = tabs[0].url;
+                var url = psGetRealUrl(tabs[0].url);
                 var el = document.getElementById('detectedUrl');
                 if (el) {
                     el.textContent = url;
@@ -244,7 +249,7 @@ function getCurrentTabUrl(callback) {
         console.error('Error getting URL:', error);
     }
 }
-
+ 
 function loadStats() {
     try {
         chrome.storage.local.get(['stats'], function(result) {
@@ -255,7 +260,7 @@ function loadStats() {
         console.error('Error loading stats:', error);
     }
 }
-
+ 
 function updateStatsDisplay(stats) {
     var scanned = document.getElementById('scannedCount');
     var threats = document.getElementById('threatsBlocked');
@@ -264,19 +269,19 @@ function updateStatsDisplay(stats) {
     if (threats) threats.textContent = stats.threats || 0;
     if (safe) safe.textContent = stats.safe || 0;
 }
-
+ 
 function updateStatsAfterScan(data) {
     try {
         chrome.storage.local.get(['stats'], function(result) {
             var stats = result && result.stats ? result.stats : { scanned: 0, threats: 0, safe: 0 };
-
+ 
             if (data.verdict === 'Safe') {
                 stats.safe = (stats.safe || 0) + 1;
             } else if (data.verdict === 'Suspicious' || data.verdict === 'Phishing') {
                 stats.threats = (stats.threats || 0) + 1;
             }
             stats.scanned = (stats.scanned || 0) + 1;
-
+ 
             chrome.storage.local.set({ stats: stats });
             updateStatsDisplay(stats);
         });
@@ -284,12 +289,12 @@ function updateStatsAfterScan(data) {
         console.error('Error updating stats:', error);
     }
 }
-
+ 
 function saveToHistory(data) {
     try {
         chrome.storage.local.get(['history'], function(result) {
             var history = (result && result.history) ? result.history : [];
-
+ 
             history.unshift({
                 url: data.url,
                 status: data.verdict === 'Phishing' ? 'phishing' :
@@ -303,11 +308,11 @@ function saveToHistory(data) {
                 vt_vendors: data.vt_vendors || null,
                 vt_details: data.vt_details || null
             });
-
+ 
             if (history.length > 200) {
                 history = history.slice(0, 200);
             }
-
+ 
             chrome.storage.local.set({ history: history }, function() {
                 loadMiniDashboard();
             });
@@ -316,7 +321,7 @@ function saveToHistory(data) {
         console.error('Error saving history:', error);
     }
 }
-
+ 
 function loadMiniDashboard() {
     try {
         chrome.storage.local.get(['history'], function(result) {
@@ -327,32 +332,32 @@ function loadMiniDashboard() {
         console.error('Error loading mini dashboard:', error);
     }
 }
-
+ 
 function renderMiniDashboard(history) {
     var total = history.length;
     var safeCount = 0, susCount = 0, phishCount = 0;
-
+ 
     for (var i = 0; i < history.length; i++) {
         if (history[i].status === 'phishing') phishCount++;
         else if (history[i].status === 'suspicious') susCount++;
         else safeCount++;
     }
-
+ 
     var safePct = total > 0 ? Math.round((safeCount / total) * 100) : 0;
     var susPct = total > 0 ? Math.round((susCount / total) * 100) : 0;
     var phishPct = total > 0 ? Math.max(0, 100 - safePct - susPct) : 0;
-
+ 
     var totalEl = document.getElementById('miniDonutTotal');
     var safeEl = document.getElementById('miniSafePct');
     var susEl = document.getElementById('miniSusPct');
     var phishEl = document.getElementById('miniPhishPct');
     var donut = document.getElementById('miniDonut');
-
+ 
     if (totalEl) totalEl.textContent = total;
     if (safeEl) safeEl.textContent = safePct + '%';
     if (susEl) susEl.textContent = susPct + '%';
     if (phishEl) phishEl.textContent = phishPct + '%';
-
+ 
     if (donut) {
         if (total === 0) {
             donut.style.background = '#E4E7F0';
@@ -366,7 +371,7 @@ function renderMiniDashboard(history) {
                 'var(--phishing) ' + susEnd + '% 100%)';
         }
     }
-
+ 
     var safeCountEl = document.getElementById('miniSafeCount');
     var flaggedCountEl = document.getElementById('miniFlaggedCount');
     var blockedCountEl = document.getElementById('miniBlockedCount');
@@ -374,7 +379,7 @@ function renderMiniDashboard(history) {
     if (flaggedCountEl) flaggedCountEl.textContent = susCount;
     if (blockedCountEl) blockedCountEl.textContent = phishCount;
 }
-
+ 
 function formatPct(num) {
     if (typeof num !== 'number' || isNaN(num)) return '0';
     var rounded = Math.round(num);
@@ -382,7 +387,7 @@ function formatPct(num) {
     if (rounded > 100) rounded = 100;
     return String(rounded);
 }
-
+ 
 function updateResultDisplay(data) {
     var verdict = document.getElementById('verdictDisplay');
     var confidence = document.getElementById('confidenceValue');
@@ -391,19 +396,19 @@ function updateResultDisplay(data) {
     var section = document.getElementById('resultSection');
     var badge = document.getElementById('resultBadge');
     var icon = document.getElementById('resultIcon');
-
+ 
     if (!verdict || !confidence || !message) {
         console.error('Result elements missing!');
         return;
     }
-
+ 
     if (section) section.style.display = 'block';
     if (badge) badge.style.display = 'flex';
-
+ 
     var riskPct = typeof data.riskPct === 'number' ? data.riskPct : data.confidence;
     var safetyPctRaw = typeof data.safetyPct === 'number' ? data.safetyPct : (100 - (data.confidence || 0));
     var safetyPct = Math.min(safetyPctRaw, 99);
-
+ 
     if (data.verdict === 'Safe') {
         if (confidenceLabel) confidenceLabel.textContent = 'Safety Score';
         confidence.textContent = formatPct(safetyPct) + '%';
@@ -411,19 +416,19 @@ function updateResultDisplay(data) {
         if (confidenceLabel) confidenceLabel.textContent = 'Risk Score';
         confidence.textContent = formatPct(riskPct) + '%';
     }
-
+ 
     try {
         chrome.storage.local.set({ currentScanData: data });
     } catch (error) {
         console.error('Error saving data:', error);
     }
-
+ 
     if (data.verdict === 'Safe') {
         verdict.textContent = formatPct(safetyPct) + '% Safe';
         verdict.className = 'result-status safe';
         message.textContent = data.description || 'This URL appears to be safe.';
         if (badge) badge.className = 'status-banner result-badge safe';
-        if (icon) icon.textContent = '✓';
+        if (icon) icon.textContent = '\u2713';
     } else if (data.verdict === 'Suspicious') {
         verdict.textContent = 'Suspicious';
         verdict.className = 'result-status suspicious';
@@ -435,7 +440,7 @@ function updateResultDisplay(data) {
         verdict.className = 'result-status phishing';
         message.textContent = data.description || 'This URL is a phishing threat! Do NOT enter any personal information.';
         if (badge) badge.className = 'status-banner result-badge phishing';
-        if (icon) icon.textContent = '✕';
+        if (icon) icon.textContent = '\u2715';
     } else {
         verdict.textContent = 'Unknown';
         verdict.className = 'result-status unknown';
@@ -444,18 +449,23 @@ function updateResultDisplay(data) {
         if (icon) icon.textContent = '?';
     }
 }
-
+ 
 function adaptDetectionResponse(url, raw) {
     var verdictMap = { phishing: 'Phishing', suspicious: 'Suspicious', safe: 'Safe' };
     var verdict = verdictMap[(raw.verdict || 'safe').toLowerCase()] || 'Unknown';
     var confidence = Math.round((raw.confidence_score || 0) * 100);
     var riskPct = (raw.confidence_score || 0) * 100;
     var safetyPct = 100 - riskPct;
-
+ 
     var indicators = [];
-    if (raw.vt_positives > 0) {
-        indicators.push('Flagged by ' + raw.vt_positives + ' VirusTotal security vendor(s)');
+ 
+    // Always show the VirusTotal result (or say clearly that it is missing).
+    if (raw.vt_total_engines != null) {
+        indicators.push('VirusTotal: ' + (raw.vt_positives || 0) + ' of ' + raw.vt_total_engines + ' security vendors flagged this URL');
+    } else {
+        indicators.push('VirusTotal: no result returned by the backend');
     }
+ 
     if (raw.vt_vendors) {
         raw.vt_vendors
             .filter(function (v) { return v.category === 'malicious' || v.category === 'suspicious'; })
@@ -467,10 +477,10 @@ function adaptDetectionResponse(url, raw) {
     if (raw.domain_age_days != null && raw.domain_age_days < 30) {
         indicators.push('Domain registered only ' + raw.domain_age_days + ' day(s) ago');
     }
-    if (indicators.length === 0) {
-        indicators.push('No suspicious indicators detected');
+    if (indicators.length === 1 && raw.vt_total_engines != null && !raw.vt_positives) {
+        indicators.push('No other suspicious indicators detected');
     }
-
+ 
     return {
         url: url,
         verdict: verdict,
@@ -489,7 +499,7 @@ function adaptDetectionResponse(url, raw) {
         vt_details: raw.vt_details || null
     };
 }
-
+ 
 // ===== PAGE CONTENT CHECK =====
 // A URL alone can look harmless while the page itself is a fake login (for example a
 // copy of the Microsoft sign-in page on a free host). So we also read the open page and
@@ -512,7 +522,7 @@ var PS_PAGE_BRANDS = [
     { name: 'HSBC', words: ['hsbc'], official: ['hsbc.com', 'hsbc.com.my'] },
     { name: 'DHL', words: ['dhl'], official: ['dhl.com'] }
 ];
-
+ 
 // Runs INSIDE the web page (via chrome.scripting) - must not use anything from this file.
 function psPageProbe() {
     var body = document.body ? document.body.innerText.slice(0, 5000) : '';
@@ -535,7 +545,7 @@ function psPageProbe() {
         isHttp: location.protocol === 'http:'
     };
 }
-
+ 
 function psReadPageSignals(callback) {
     var done = false;
     function finish(v) { if (!done) { done = true; callback(v); } }
@@ -551,20 +561,20 @@ function psReadPageSignals(callback) {
         });
     } catch (e) { finish(null); }
 }
-
+ 
 function psCountOccurrences(text, word) {
     var count = 0, idx = 0;
     while ((idx = text.indexOf(word, idx)) !== -1) { count++; idx += word.length; }
     return count;
 }
-
+ 
 // Only ever RAISES the risk, never lowers it.
 function psApplyPageSignals(data, url, sig) {
     if (!sig || !data) return data;
     var host = '';
     try { host = new URL(url).hostname.toLowerCase(); } catch (e) { return data; }
     if (sig.host && sig.host !== host) return data; // the tab changed while scanning
-
+ 
     var found = null;
     for (var i = 0; i < PS_PAGE_BRANDS.length && !found; i++) {
         var b = PS_PAGE_BRANDS[i];
@@ -578,7 +588,7 @@ function psApplyPageSignals(data, url, sig) {
         });
         if (evidence >= 3) found = b;
     }
-
+ 
     var extra = null;
     if (found && sig.hasCredentialField) {
         var weakUrl = sig.isHttp || data.confidence >= 20 || data.verdict !== 'Safe';
@@ -603,10 +613,10 @@ function psApplyPageSignals(data, url, sig) {
         };
     }
     if (!extra) return data;
-
+ 
     var rank = { Safe: 0, Unknown: 0, Suspicious: 1, Phishing: 2 };
     if (rank[extra.verdict] <= (rank[data.verdict] || 0) && data.verdict !== 'Safe') return data;
-
+ 
     var risk = Math.max(extra.risk, data.confidence || 0);
     var upgraded = {};
     for (var k in data) upgraded[k] = data[k];
@@ -617,10 +627,12 @@ function psApplyPageSignals(data, url, sig) {
     upgraded.safetyPct = 100 - risk;
     upgraded.description = extra.text;
     upgraded.tips = extra.tips;
-    upgraded.indicators = [extra.text].concat((data.indicators || []).filter(function (t) { return t !== 'No suspicious indicators detected' && t.indexOf('No risk indicators') === -1; }));
+    upgraded.indicators = [extra.text].concat((data.indicators || []).filter(function (t) {
+        return t !== 'No suspicious indicators detected' && t.indexOf('No risk indicators') === -1;
+    }));
     return upgraded;
 }
-
+ 
 // Shows the URL-based result straight away, then refines it once the page check is done.
 function psShowThenRefine(data, url) {
     try { updateResultDisplay(data); } catch (e) { console.error('Display error:', e); }
@@ -630,7 +642,7 @@ function psShowThenRefine(data, url) {
         psFinishScan(finalData);
     });
 }
-
+ 
 function psFinishScan(data) {
     try {
         chrome.storage.local.set({ lastScanResult: data, currentScanData: data });
@@ -643,27 +655,30 @@ function psFinishScan(data) {
         saveToHistory(data);
     }
 }
-
+ 
 function scanUrl(url) {
     var verdict = document.getElementById('verdictDisplay');
     var loading = document.getElementById('loadingState');
     var section = document.getElementById('resultSection');
-
+    var waitMsg = document.getElementById('warningMessage');
+ 
     if (verdict) {
         verdict.textContent = 'Scanning...';
         verdict.className = 'result-status';
     }
     if (loading) loading.style.display = 'block';
     if (section) section.style.display = 'block';
-
-    var apiBase = (typeof PHISHSHIELD_CONFIG !== 'undefined' && PHISHSHIELD_CONFIG.API_BASE) || 'http://127.0.0.1:8000';
+    if (waitMsg) waitMsg.textContent = 'Contacting scan server\u2026 this can take up to 45 seconds if it was asleep.';
+ 
+    var apiBase = (typeof PHISHSHIELD_CONFIG !== 'undefined' && PHISHSHIELD_CONFIG.API_BASE) || 'https://phishshield-api-qsuo.onrender.com';
     var apiKey = (typeof PHISHSHIELD_CONFIG !== 'undefined') ? PHISHSHIELD_CONFIG.API_KEY : '';
     var scanHeaders = { 'Content-Type': 'application/json' };
     if (apiKey) scanHeaders['X-PhishShield-Key'] = apiKey;
-
+ 
+    // 45s: Render's free tier can take 30-60s to wake up from sleep.
     var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-    var timeoutId = controller ? setTimeout(function () { controller.abort(); }, 10000) : null;
-
+    var timeoutId = controller ? setTimeout(function () { controller.abort(); }, 45000) : null;
+ 
     fetch(apiBase + '/api/detect', {
         method: 'POST',
         headers: scanHeaders,
@@ -686,12 +701,12 @@ function scanUrl(url) {
         if (timeoutId) clearTimeout(timeoutId);
         console.warn('Backend error, using fallback:', error);
         if (loading) loading.style.display = 'none';
-
+ 
         var message = document.getElementById('warningMessage');
         if (message) {
             message.textContent = 'Backend offline. Using local analysis.';
         }
-
+ 
         var fallback = null;
         try {
             fallback = generateFallbackResult(url);
@@ -703,7 +718,8 @@ function scanUrl(url) {
                 fallback = {
                     url: url, verdict: bv, confidence: b.score, riskScore: b.score, riskPct: b.score,
                     safetyPct: 100 - b.score, description: 'Backend offline. Checked with basic built-in rules only.',
-                    indicators: b.reasons, tips: 'Always verify the domain name before entering personal information.'
+                    indicators: b.reasons.concat(['VirusTotal: unavailable (backend offline)']),
+                    tips: 'Always verify the domain name before entering personal information.'
                 };
             } catch (fbErr2) {
                 console.error('Built-in scoring failed too:', fbErr2);
@@ -723,8 +739,9 @@ function scanUrl(url) {
         }
     });
 }
-
+ 
 // Small built-in scorer, used only if lib/scanner.js could not be loaded.
+// NOTE: here a HIGHER score means MORE risk (0 = clean, 100 = very risky).
 function psBuiltinScore(rawUrl) {
     var reasons = [], score = 0, u;
     try { u = new URL(rawUrl); } catch (e) { return { score: 50, verdict: 'warn', reasons: ['Could not read this address'] }; }
@@ -746,7 +763,7 @@ function psBuiltinScore(rawUrl) {
     if (reasons.length === 0) reasons.push('No risk indicators found');
     return { score: score, verdict: score >= 60 ? 'danger' : (score >= 30 ? 'warn' : 'safe'), reasons: reasons };
 }
-
+ 
 function generateFallbackResult(url) {
     if (typeof phishshieldScoreUrl !== 'function') {
         var b = psBuiltinScore(url);
@@ -759,52 +776,56 @@ function generateFallbackResult(url) {
             riskPct: b.score,
             safetyPct: 100 - b.score,
             description: 'Backend offline. Checked with basic built-in rules only.',
-            indicators: b.reasons,
+            indicators: b.reasons.concat(['VirusTotal: unavailable (backend offline)']),
             tips: bv === 'Safe'
                 ? 'Always verify the domain name before entering personal information.'
                 : 'Do not enter personal information on this site until you have verified it.'
         };
     }
+ 
     var result = phishshieldScoreUrl(url);
     var verdictMap = { danger: 'Phishing', warn: 'Suspicious', safe: 'Safe' };
     var verdict = verdictMap[result.verdict] || 'Unknown';
-
+ 
     var tips;
     if (verdict === 'Phishing') {
         tips = 'Do NOT enter any personal information on this site.';
     } else if (verdict === 'Suspicious') {
-        tips = 'A padlock icon only means the connection is encrypted — it says nothing about whether the site itself is genuine. Always read the actual domain name.';
+        tips = 'A padlock icon only means the connection is encrypted \u2014 it says nothing about whether the site itself is genuine. Always read the actual domain name.';
     } else {
         tips = 'Always verify the domain name before entering personal information.';
     }
-
+ 
+    // lib/scanner.js returns a SAFETY score (99 = safest), so invert it to get risk.
+    var risk = Math.max(0, Math.min(100, 100 - (result.score || 0)));
+ 
     return {
         url: url,
         verdict: verdict,
-        confidence: result.score,
-        riskScore: result.score,
-        riskPct: result.score,
-        safetyPct: 100 - result.score,
-        description: verdict === 'Phishing' ? 'Multiple phishing indicators detected!'
+        confidence: risk,
+        riskScore: risk,
+        riskPct: risk,
+        safetyPct: 100 - risk,
+        description: verdict === 'Phishing' ? 'Multiple phishing indicators detected! (local rules only, VirusTotal unavailable)'
             : verdict === 'Suspicious' ? 'This URL has suspicious characteristics. Please be cautious.'
             : 'This URL appears to be safe.',
-        indicators: result.reasons || [],
+        indicators: (result.reasons || []).concat(['VirusTotal: unavailable (backend offline)']),
         tips: tips
     };
 }
-
+ 
 function populateDetails() {
     try {
         chrome.storage.local.get(['currentScanData'], function(result) {
             var data = result && result.currentScanData ? result.currentScanData : null;
-
+ 
             var urlEl = document.getElementById('detailUrl');
             var verdictEl = document.getElementById('detailVerdict');
             var confEl = document.getElementById('detailConfidence');
             var riskEl = document.getElementById('detailRiskScore');
             var indEl = document.getElementById('detailIndicators');
             var tipsEl = document.getElementById('detailTips');
-
+ 
             if (data) {
                 if (urlEl) urlEl.textContent = data.url || '-';
                 if (verdictEl) {
@@ -819,7 +840,7 @@ function populateDetails() {
                 }
                 if (confEl) confEl.textContent = data.confidence !== undefined ? data.confidence + '%' : '-';
                 if (riskEl) riskEl.textContent = data.riskScore !== undefined ? data.riskScore + '/100' : (data.confidence !== undefined ? data.confidence + '/100' : '-');
-
+ 
                 if (indEl) {
                     if (data.indicators && data.indicators.length > 0) {
                         var html = '';
@@ -831,7 +852,7 @@ function populateDetails() {
                         indEl.innerHTML = '<li>No suspicious indicators detected</li>';
                     }
                 }
-
+ 
                 if (tipsEl) {
                     tipsEl.textContent = data.tips || 'Always verify the domain name.';
                 }
@@ -848,5 +869,6 @@ function populateDetails() {
         console.error('Error populating details:', error);
     }
 }
-
+ 
 console.log('PhishShield popup ready!');
+ 

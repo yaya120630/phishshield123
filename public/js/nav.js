@@ -1,17 +1,11 @@
-// Sidebar nav: shows only the selected section, hides the rest.
+// Sidebar nav: Dashboard shows everything; every other tab shows only its own section.
 //
 // This used to live in an inline <script> tag directly inside
 // dashboard.html. Manifest V3 extension pages enforce a strict default
 // Content Security Policy (script-src 'self') that silently blocks ALL
-// inline scripts — no error shown to the user, the click handlers just
-// never attached. Moving this to its own file loaded via <script
-// src="js/nav.js"> is required for it to run at all inside the
-// extension context.
+// inline scripts, so it has to be loaded via <script src="js/nav.js">.
 var PS_NAV_TARGETS = ['dashboard-top', 'section-vendor', 'section-details', 'section-relations', 'section-community', 'section-recent'];
 
-// The header used to always say "Good morning" no matter the actual
-// time — replaced with a greeting based on the user's real local hour,
-// falling back to a plain "Hello" around the edges of the day.
 (function setGreeting() {
   var el = document.getElementById('greeting-h1');
   if (!el) return;
@@ -23,21 +17,37 @@ var PS_NAV_TARGETS = ['dashboard-top', 'section-vendor', 'section-details', 'sec
   el.textContent = text + ' \uD83D\uDC4B';
 })();
 
+function showView(targetId) {
+  var isDashboard = targetId === 'dashboard-top';
+
+  // Dashboard = show everything. Other tab = show only that section.
+  PS_NAV_TARGETS.forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.toggle('page-hidden', !isDashboard && id !== targetId);
+  });
+
+  // Hide the empty wrapper so there is no blank gap
+  // (only needed for Recent Detections, which sits outside .section-list)
+  var list = document.querySelector('.section-list');
+  if (list) list.classList.toggle('page-hidden', !isDashboard && targetId === 'section-recent');
+
+  document.querySelectorAll('.nav-item').forEach(function (n) {
+    n.classList.toggle('active', n.dataset.target === targetId);
+  });
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Lets other scripts (e.g. index.js after a scan) switch tabs.
+window.psShowView = showView;
+
 function initNav() {
   document.querySelectorAll('.nav-item[data-target]').forEach(function (item) {
     item.addEventListener('click', function () {
-      PS_NAV_TARGETS.forEach(function (id) {
-        var el = document.getElementById(id);
-        if (el) el.classList.toggle('page-hidden', id !== item.dataset.target);
-      });
-
-      document.querySelectorAll('.nav-item').forEach(function (n) { n.classList.remove('active'); });
-      item.classList.add('active');
-
-      var target = document.getElementById(item.dataset.target);
-      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      showView(item.dataset.target);
     });
   });
+  showView('dashboard-top'); // default view on load
 }
 
 if (document.readyState === 'loading') {

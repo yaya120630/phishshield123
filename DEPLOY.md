@@ -1,60 +1,100 @@
-# PhishShield — Deploying the backend (Render)
+# PhishShield — Deploying
 
-This makes the backend reachable by anyone's copy of the extension,
-not just your own machine. Local-only setup (`http://127.0.0.1:8000`)
-still works fine for development — this is only needed once you want
-someone else to test the extension.
+PhishShield has two deployable parts:
+
+- **Backend** (FastAPI) → **Render**, auto-deployed from GitHub.
+- **Web dashboard + landing page** (the `public/` folder) → **Firebase Hosting**.
+
+The Chrome extension loads the same `public/` files locally and talks to
+the Render backend. Local-only setup (`http://127.0.0.1:8000`) still
+works for development — see `SETUP.md`.
+
+---
 
 ## 1. Push this project to GitHub
 
-The repo needs `backend/`, `render.yaml`, and `phishshield-extension-updated/`
-at the root. `backend/.env` is already gitignored — never commit it.
+The repo needs `backend/`, `render.yaml`, `firebase.json`, and `public/`
+at the root. Secrets stay out of git: `backend/.env` and anything
+matching `*.env` are gitignored — never commit them.
 
-## 2. Create the Render service
+Render is already connected to this repo and auto-deploys the backend on
+every push to the default branch.
 
-1. Go to https://render.com → New → Blueprint
-2. Connect your GitHub repo — Render reads `render.yaml` automatically
-   and creates the web service from it
-3. In the Render dashboard, set the real values for `VT_API_KEY` and
-   `GEMINI_API_KEY` (the ones marked `sync: false` in render.yaml —
-   Render won't ask you to commit them, you paste them in directly)
-4. Optionally set `PHISHSHIELD_API_KEY` to a random string — if you
-   do, you MUST also set the same string in
-   `phishshield-extension/js/config.js` (`API_KEY` field) or the
-   extension's requests will be rejected with 401
+## 2. Backend on Render
 
-## 3. Point the extension at the deployed backend
+The backend is live at:
 
-Once deployed, Render gives you a URL like
-`https://phishshield-backend.onrender.com`. Edit
-`phishshield-extension/js/config.js`:
-
-```js
-const PHISHSHIELD_CONFIG = {
-    API_BASE: 'https://phishshield-backend.onrender.com',
-    API_KEY: ''  // fill in only if you set PHISHSHIELD_API_KEY above
-};
 ```
+https://phishshield-api-qsuo.onrender.com
+```
+
+Render reads `render.yaml` automatically (service name `phishshield-api`,
+`rootDir: backend`). To (re)create it: Render → New → Blueprint → connect
+this repo.
+
+In the Render dashboard → **Environment**, set the real values for the
+variables marked `sync: false` in `render.yaml`:
+
+- `VT_API_KEY` — your VirusTotal key
+- `GEMINI_API_KEY` — your Gemini key
+- `PHISHSHIELD_API_KEY` — optional shared secret. If you set it, you MUST
+  put the same string in `public/js/config.js` (`API_KEY` field) or every
+  request is rejected with 401.
+- `CORS_ALLOW_ORIGINS` — optional, only if you add a custom domain for the
+  web dashboard (comma-separated). The Firebase Hosting origins are
+  already allowed by default.
+
+> The frontend (`public/js/config.js`) already points `API_BASE` at the
+> URL above. If you deploy under a different Render URL, update that one
+> field.
+
+## 3. Web dashboard + landing page on Firebase Hosting
+
+`firebase.json` deploys the `public/` folder. The site is served at:
+
+```
+https://phishshield-904ab.web.app
+```
+
+Deploy with one command from the repo root:
+
+```bash
+firebase deploy --only hosting
+```
+
+(First time only: `npm install -g firebase-tools` then `firebase login`.
+The project is pinned in `.firebaserc` to `phishshield-904ab`.)
+
+### CORS
+
+The backend already allows `https://phishshield-904ab.web.app` and
+`https://phishshield-904ab.firebaseapp.com`. If the web dashboard's scans
+fail with a CORS error, confirm the backend has been redeployed with the
+latest `backend/app/main.py` and that your origin is in that list (or in
+`CORS_ALLOW_ORIGINS`).
 
 ## 4. Share the extension
 
-Zip just the `phishshield-extension` folder and send it, or share it
-as a Drive/WeTransfer link. The person testing it:
+Zip the `public/` folder and send it, or share a link. The person testing:
 
 1. Opens `chrome://extensions`
 2. Enables **Developer mode**
-3. Clicks **Load unpacked** → selects the extension folder
+3. Clicks **Load unpacked** → selects the folder
 
 No Python, no `.env`, no command line on their end — the backend is
 already running on Render.
 
 ## Notes
 
-- **Free tier sleeps after inactivity.** The first request after
-  sleeping takes ~20–30s to wake up. Fine for testing, worth knowing
-  before a live demo — open the dashboard a minute early to warm it up.
-- **Rate limiting is now in place** (20 requests/min per IP) to stop
-  the VirusTotal/Gemini free-tier quota from being burned by one
-  abusive client once the backend is public. Adjust
-  `RATE_LIMIT_MAX_REQUESTS` in `backend/app/routers/detect.py` if
-  needed.
+- **Render free tier sleeps after inactivity.** The first request after
+  sleeping takes ~20–30s to wake up. Both the popup and the dashboard have
+  timeouts for this; open the dashboard a minute early before a live demo.
+- **Rate limiting** is in place (20 requests/min per IP). Adjust
+  `RATE_LIMIT_MAX_REQUESTS` in `backend/app/routers/detect.py` if needed.
+- **The web dashboard is per-browser.** On a website, the dashboard reads
+  its scan history from that browser's `localStorage`, so it shows only
+  scans made on the site itself. The extension keeps its history in
+  `chrome.storage`. "From all connected browsers" is only literally true
+  once scans are synced through the Firebase Realtime Database — which is
+  initialised in `public/js/config.js` but not yet wired up. Ask if you
+  want that sync built.

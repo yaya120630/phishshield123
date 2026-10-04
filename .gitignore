@@ -2,13 +2,21 @@
 .env
 *.env
 backend/.env
+
+# Old working copy of the backend (now lives in the committed backend/ folder)
 .claude/
+
+# Agent tooling
+.kilo/
 
 # Python
 __pycache__/
 *.pyc
 .venv/
 venv/
+
+# Firebase local cache
+.firebase/
 
 # OS
 .DS_Store

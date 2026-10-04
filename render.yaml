@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: phishshield-backend
+    name: phishshield-api
     runtime: python
     plan: free
     rootDir: backend
@@ -14,4 +14,6 @@ services:
       - key: GEMINI_MODEL
         value: gemini-2.0-flash
       - key: PHISHSHIELD_API_KEY
-        sync: false          # optional shared secret — set it here AND in js/config.js
+        sync: false          # optional shared secret — set it here AND in public/js/config.js
+      - key: CORS_ALLOW_ORIGINS
+        sync: false          # optional — extra comma-separated origins (only if you add a custom domain)

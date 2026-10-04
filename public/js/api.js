@@ -48,7 +48,7 @@
   // Scan through the backend directly (there is no background.js on a website)
   function scanViaBackend(url, respond) {
     var cfg = window.PHISHSHIELD_CONFIG || {};
-    var base = cfg.API_BASE || 'http://127.0.0.1:8000';
+    var base = cfg.API_BASE || 'https://phishshield-api-qsuo.onrender.com';
     var headers = { 'Content-Type': 'application/json' };
     if (cfg.API_KEY) headers['X-PhishShield-Key'] = cfg.API_KEY;
 
