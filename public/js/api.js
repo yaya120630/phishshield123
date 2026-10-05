@@ -721,10 +721,60 @@ function renderCommunity() {
     }).join('');
 }
 
+// ===== PUBLIC COMMUNITY SYNC (Firebase Realtime Database) =====
+// When Firebase is configured (window.firebaseReady), the Community panel is
+// shared across ALL visitors: comments are stored in the Realtime Database and
+// streamed live to everyone. When Firebase is NOT configured, it transparently
+// falls back to the old per-browser chrome.storage.local behaviour, so the
+// panel keeps working either way.
+
+function psCommunityUsesFirebase() {
+    return !!(window.firebaseReady && window.firebaseDB);
+}
+
+// Realtime DB keys can't contain . # $ [ ] / — encode the URL into a safe key.
+function psCommunityKey(url) {
+    try { return encodeURIComponent(url).replace(/[.#$\[\]\/]/g, function (c) {
+        return '%' + c.charCodeAt(0).toString(16).toUpperCase();
+    }); } catch (e) { return 'invalid'; }
+}
+
+// Subscribe once to the whole community tree and mirror it into psState so the
+// existing renderCommunity() (which reads psState.community[url]) just works.
+var _psCommunitySubscribed = false;
+function psSubscribeCommunity() {
+    if (!psCommunityUsesFirebase() || _psCommunitySubscribed) return;
+    _psCommunitySubscribed = true;
+    try {
+        window.firebaseDB.ref('community').on('value', function (snap) {
+            var raw = snap.val() || {};
+            var out = {};
+            // Convert { safeKey: { comments: { pushId: {...} } } } into the
+            // { url: { comments: [...] } } shape renderCommunity expects.
+            Object.keys(raw).forEach(function (key) {
+                var node = raw[key] || {};
+                var url = node.url || '';
+                var commentsObj = node.comments || {};
+                var comments = Object.keys(commentsObj).map(function (id) { return commentsObj[id]; });
+                comments.sort(function (a, b) { return (a.ts || '').localeCompare(b.ts || ''); });
+                if (url) out[url] = { comments: comments };
+            });
+            psState.community = out;
+            renderCommunity();
+        });
+    } catch (e) {
+        console.warn('Community: Firebase subscribe failed, using local only.', e);
+        _psCommunitySubscribed = false;
+    }
+}
+
 function wireCommunity() {
     var btn = document.getElementById('comment-btn');
     var input = document.getElementById('comment-input');
     if (!btn || !input) return;
+
+    // If Firebase is configured, start the live public feed.
+    psSubscribeCommunity();
 
     function post() {
         var text = input.value.trim();
@@ -732,10 +782,27 @@ function wireCommunity() {
         if (!text || !entry) return;
 
         var url = entry.url;
+        var comment = { who: 'Anonymous', text: text, ts: new Date().toISOString() };
+
+        if (psCommunityUsesFirebase()) {
+            // Public path: push to the shared Realtime Database. The live
+            // 'value' listener re-renders for everyone (including us).
+            try {
+                var node = window.firebaseDB.ref('community/' + psCommunityKey(url));
+                node.child('url').set(url);
+                node.child('comments').push(comment);
+                input.value = '';
+                return;
+            } catch (e) {
+                console.warn('Community: Firebase post failed, saving locally.', e);
+            }
+        }
+
+        // Fallback: per-browser local storage.
         chrome.storage.local.get(['community'], function (result) {
             var community = result.community || {};
             if (!community[url]) community[url] = { comments: [] };
-            community[url].comments.push({ who: 'You', text: text, ts: new Date().toISOString() });
+            community[url].comments.push(comment);
             chrome.storage.local.set({ community: community }, function () {
                 input.value = '';
             });
