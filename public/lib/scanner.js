@@ -154,13 +154,23 @@ function phishshieldScoreUrl(urlStr) {
     const full = (host + path);
 
     // 1. Known-good: official brand domains and trusted institutions are safe.
+    // Return the full labeled checklist as all-clean so the vendor grid still
+    // shows the named checks (not an empty panel) for trusted sites.
     if (psIsOfficial(host) || psIsTrusted(host)) {
-      return { score: 99, verdict: "safe", reasons: [] };
+      return {
+        score: 99,
+        verdict: "safe",
+        reasons: [],
+        checks: psBuildChecks({
+          brand: false, https: url.protocol === "https:", ip: false, at: false,
+          puny: false, hyphens: 0, dots: host.split(".").length - 1,
+          urlLen: urlStr.length, shortener: false, riskyTld: false, keywords: []
+        })
+      };
     }
 
     // 2a. Lookalike-suffix spoofing: the host embeds an official domain as a
-    //     label but is not actually on it (e.g. roblox.com.do). Strong flag
-    //     (equivalent to the requested -50 in a safety-score model).
+    //     label but is not actually on it (e.g. roblox.com.do). Strong flag.
     const lookalikeBrand = psLookalikeBrand(host);
     if (lookalikeBrand) {
       risk += 55;
@@ -175,6 +185,7 @@ function phishshieldScoreUrl(urlStr) {
       risk += 55;
       reasons.push("Impersonates a known brand (" + brandHit + ") on an unofficial domain");
     }
+    const brandFlagged = !!(lookalikeBrand || brandHit);
 
     // 3. Free hosting / blogging platforms used as the site host.
     if (PHISHSHIELD_FREE_HOSTS.some(d => host.endsWith(d))) {
@@ -189,37 +200,43 @@ function phishshieldScoreUrl(urlStr) {
     }
 
     // 4. Raw IP address instead of a domain name.
-    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
+    const isIpHost = /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+    if (isIpHost) {
       risk += 45;
       reasons.push("Uses a raw IP address instead of a domain");
     }
 
     // 5. URL shortener hides the real destination.
-    if (PHISHSHIELD_SHORTENERS.has(host)) {
+    const isShortener = PHISHSHIELD_SHORTENERS.has(host);
+    if (isShortener) {
       risk += 30;
       reasons.push("URL shortener hides the real destination");
     }
 
     // 6. Risky / abused top-level domain.
-    if (PHISHSHIELD_RISKY_TLDS.has(tld)) {
+    const isRiskyTld = PHISHSHIELD_RISKY_TLDS.has(tld);
+    if (isRiskyTld) {
       risk += 35;
       reasons.push("Risky top-level domain (." + tld + ")");
     }
 
     // 7. Punycode / look-alike characters.
-    if (host.includes("xn--")) {
+    const isPuny = host.includes("xn--");
+    if (isPuny) {
       risk += 40;
       reasons.push("Punycode (look-alike characters) in domain");
     }
 
     // 8. '@' trick in the authority — the real host is after the '@'.
-    if (urlStr.split("/").slice(0, 3).join("/").includes("@")) {
+    const hasAtTrick = urlStr.split("/").slice(0, 3).join("/").includes("@");
+    if (hasAtTrick) {
       risk += 40;
       reasons.push("Contains an '@' that disguises the real destination");
     }
 
     // 9. Not HTTPS.
-    if (url.protocol !== "https:") {
+    const isHttps = url.protocol === "https:";
+    if (!isHttps) {
       risk += 20;
       reasons.push("Connection is not secure (no HTTPS)");
     }
@@ -261,10 +278,35 @@ function phishshieldScoreUrl(urlStr) {
 
     if (!reasons.length) reasons.push("No local risk indicators");
 
-    return { score, verdict, reasons };
+    const checks = psBuildChecks({
+      brand: brandFlagged, https: isHttps, ip: isIpHost, at: hasAtTrick,
+      puny: isPuny, hyphens: hyphenCount, dots: dotCount, urlLen: urlStr.length,
+      shortener: isShortener, riskyTld: isRiskyTld, keywords: hitWords
+    });
+
+    return { score, verdict, reasons, checks };
   } catch (e) {
     return { score: 40, verdict: "warn", reasons: ["Invalid or unparseable URL"] };
   }
+}
+
+// Build the named check-list shown in the "Security vendor analysis" panel
+// when VirusTotal has no data. Each entry is {name, flagged} — the dashboard
+// renders flagged ones red and the rest as "Clean".
+function psBuildChecks(s) {
+  return [
+    { name: "HTTPS Encryption", flagged: !s.https },
+    { name: "IP-Address Host", flagged: !!s.ip },
+    { name: "Credential-Trick ('@') Check", flagged: !!s.at },
+    { name: "Punycode / IDN Homograph", flagged: !!s.puny },
+    { name: "Excessive Hyphens", flagged: s.hyphens >= 2 },
+    { name: "Subdomain Depth", flagged: s.dots >= 4 },
+    { name: "URL Length", flagged: s.urlLen > 75 },
+    { name: "URL Shortener", flagged: !!s.shortener },
+    { name: "Suspicious TLD", flagged: !!s.riskyTld },
+    { name: "Brand Domain Match", flagged: !!s.brand },
+    { name: "Credential-Harvesting Language", flagged: (s.keywords || []).length > 0 }
+  ];
 }
 
 function SUSPICIOUS_FIND(full) {
