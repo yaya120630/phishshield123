@@ -307,9 +307,16 @@ function psNormalize(entry) {
     };
 }
 
-function psFormatUnixDate(seconds) {
-    if (seconds == null) return null;
-    return new Date(seconds * 1000).toLocaleString();
+function psFormatUnixDate(value) {
+    if (value == null || value === '') return null;
+    // The backend sends VirusTotal dates already formatted as a string
+    // (e.g. "2023-01-15 10:30:00 UTC"). Older/other callers may pass a raw
+    // Unix timestamp (number or numeric string). Handle both.
+    if (typeof value === 'number' || /^\d+$/.test(String(value).trim())) {
+        var d = new Date(Number(value) * 1000);
+        return isNaN(d.getTime()) ? null : d.toLocaleString();
+    }
+    return String(value); // already a human-readable date string
 }
 
 function psBytes(n) {
