@@ -61,83 +61,126 @@ function psIsTrusted(host) {
   );
 }
 
+// Additive RISK model: start at 0 and add points for each red flag. This is
+// the only signal when the backend (VirusTotal + Gemini) is unreachable, so
+// it is tuned to catch obvious phishing tells rather than err toward "safe".
+//
+// Risk -> verdict:  >= 60 danger (phishing),  >= 25 warn (suspicious),  else safe.
+// The returned `score` is a 0-99 SAFETY score (100 - risk) so the UI ring and
+// the verdict always agree.
 function phishshieldScoreUrl(urlStr) {
-  let score = 99;
   const reasons = [];
+  let risk = 0;
 
   try {
     const url = new URL(urlStr);
     const host = url.hostname.toLowerCase();
     const tld = host.split(".").pop();
+    const path = (url.pathname + url.search).toLowerCase();
+    const full = (host + path);
 
-    // 1. Known-good: official brand domains and trusted institutions skip keyword checks.
+    // 1. Known-good: official brand domains and trusted institutions are safe.
     if (psIsOfficial(host) || psIsTrusted(host)) {
       return { score: 99, verdict: "safe", reasons: [] };
     }
 
-    let strongFlags = 0;
-
-    // 2. Brand impersonation: brand name in HOSTNAME but not an official domain.
+    // 2. Brand impersonation: a known brand name appears in the hostname but
+    //    the domain is NOT the brand's official domain. Strong phishing tell.
     const hostTokens = host.split(/[^a-z0-9]+/).filter(Boolean);
     const brandHit = PS_DEFAULT_BRANDS.find(b => hostTokens.includes(b) || host.includes(b));
     if (brandHit) {
-      score -= 50;
-      strongFlags++;
-      reasons.push("Contains brand impersonation keywords (" + brandHit + ")");
+      risk += 55;
+      reasons.push("Impersonates a known brand (" + brandHit + ") on an unofficial domain");
     }
 
-    // 3. Free hosting / blogging platforms.
+    // 3. Free hosting / blogging platforms used as the site host.
     if (PHISHSHIELD_FREE_HOSTS.some(d => host.endsWith(d))) {
       const sub = host.split(".")[0];
-      if (sub.length > 10 || /[^a-z0-9]/i.test(sub) || /[0-9]{3,}/.test(sub)) {
-        score -= 40;
-        strongFlags++;
-        reasons.push("Suspicious or long free subdomain structure");
+      if (sub.length > 10 || /[0-9]{3,}/.test(sub)) {
+        risk += 35;
+        reasons.push("Suspicious free-hosting subdomain");
       } else {
-        score -= 20;
-        strongFlags++;
-        reasons.push("Hosted on free public blogging platform");
+        risk += 20;
+        reasons.push("Hosted on a free public platform");
       }
     }
 
-    // 4. Other strong signals.
-    if (PHISHSHIELD_SHORTENERS.has(host)) {
-      score -= 25; strongFlags++;
-      reasons.push("URL shortener hides the real destination");
-    }
-    if (PHISHSHIELD_RISKY_TLDS.has(tld)) {
-      score -= 25; strongFlags++;
-      reasons.push("Risky top-level domain (." + tld + ")");
-    }
+    // 4. Raw IP address instead of a domain name.
     if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
-      score -= 35; strongFlags++;
+      risk += 45;
       reasons.push("Uses a raw IP address instead of a domain");
     }
+
+    // 5. URL shortener hides the real destination.
+    if (PHISHSHIELD_SHORTENERS.has(host)) {
+      risk += 30;
+      reasons.push("URL shortener hides the real destination");
+    }
+
+    // 6. Risky / abused top-level domain.
+    if (PHISHSHIELD_RISKY_TLDS.has(tld)) {
+      risk += 35;
+      reasons.push("Risky top-level domain (." + tld + ")");
+    }
+
+    // 7. Punycode / look-alike characters.
     if (host.includes("xn--")) {
-      score -= 30; strongFlags++;
+      risk += 40;
       reasons.push("Punycode (look-alike characters) in domain");
     }
+
+    // 8. '@' trick in the authority — the real host is after the '@'.
+    if (urlStr.split("/").slice(0, 3).join("/").includes("@")) {
+      risk += 40;
+      reasons.push("Contains an '@' that disguises the real destination");
+    }
+
+    // 9. Not HTTPS.
     if (url.protocol !== "https:") {
-      score -= 10;
-      reasons.push("Connection is not HTTPS");
+      risk += 20;
+      reasons.push("Connection is not secure (no HTTPS)");
     }
 
-    // 5. Generic words (login, verify...) only count when something else is already suspicious.
-    const full = (host + url.pathname).toLowerCase();
-    const word = SUSPICIOUS_FIND(full);
-    if (word && strongFlags > 0) {
-      score -= 15;
-      reasons.push('Contains suspicious word "' + word + '"');
+    // 10. Suspicious keywords (login, verify, secure, account...). These now
+    //     count on their own and stack — multiple sensitive words is a tell.
+    const hitWords = PHISHSHIELD_SUSPICIOUS_WORDS.filter(w => full.includes(w));
+    if (hitWords.length) {
+      risk += Math.min(18 * hitWords.length, 45);
+      reasons.push('Contains sensitive keyword(s): ' + hitWords.slice(0, 4).join(", "));
     }
 
-    score = Math.max(0, score);
+    // 11. Hyphen-stuffed hostname (e.g. secure-paypal-login-verify).
+    const hyphenCount = (host.match(/-/g) || []).length;
+    if (hyphenCount >= 2) {
+      risk += 15;
+      reasons.push("Hostname is hyphen-stuffed (" + hyphenCount + " hyphens)");
+    }
+
+    // 12. Excessive subdomains.
+    const dotCount = (host.match(/\./g) || []).length;
+    if (dotCount >= 4) {
+      risk += 15;
+      reasons.push("Unusually many subdomains");
+    }
+
+    // 13. Very long hostname is often used to bury a deceptive domain.
+    if (host.length > 40) {
+      risk += 10;
+      reasons.push("Unusually long hostname");
+    }
+
+    risk = Math.max(0, Math.min(risk, 100));
+    const score = 100 - risk; // safety score for the UI
+
     let verdict = "safe";
-    if (score < 50) verdict = "danger";
-    else if (score < 80) verdict = "warn";
+    if (risk >= 60) verdict = "danger";
+    else if (risk >= 25) verdict = "warn";
+
+    if (!reasons.length) reasons.push("No local risk indicators");
 
     return { score, verdict, reasons };
   } catch (e) {
-    return { score: 50, verdict: "warn", reasons: ["Invalid URL format"] };
+    return { score: 40, verdict: "warn", reasons: ["Invalid or unparseable URL"] };
   }
 }
 
