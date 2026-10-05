@@ -1,3 +1,4 @@
+import logging
 import pathlib
 
 from fastapi import FastAPI
@@ -7,6 +8,9 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import CORS_ALLOW_ORIGINS
 from app.routers import detect
+from app.services import virustotal
+
+logger = logging.getLogger("phishshield")
 
 # The web copy of the dashboard/landing page lives in the repo's public/
 # folder (what Firebase Hosting deploys). backend/app/main.py -> parents[2]
@@ -46,6 +50,20 @@ app.add_middleware(
 
 # Register API routers FIRST so routes take priority
 app.include_router(detect.router)
+
+
+@app.on_event("startup")
+async def _warn_if_no_vt_key() -> None:
+    """Log a clear warning at startup if the VirusTotal key is not configured,
+    so a missing key is obvious in the Render logs rather than silent."""
+    if not virustotal._api_key():
+        logger.warning(
+            "VT_API_KEY is not set — VirusTotal lookups are disabled and every "
+            "scan will report 'VirusTotal had no data'. Set VT_API_KEY in "
+            "Render > Environment (a valid key is 64 hex characters)."
+        )
+    else:
+        logger.info("VirusTotal API key detected — VT lookups enabled.")
 
 
 @app.get("/health")

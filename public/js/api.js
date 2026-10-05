@@ -73,7 +73,8 @@
           message: raw.awareness_message || '', timestamp: new Date().toISOString(),
           vt_positives: raw.vt_positives != null ? raw.vt_positives : null,
           vt_total_engines: raw.vt_total_engines != null ? raw.vt_total_engines : null,
-          vt_vendors: raw.vt_vendors || null, vt_details: raw.vt_details || null
+          vt_vendors: raw.vt_vendors || null, vt_details: raw.vt_details || null,
+          vt_error: raw.vt_error || null
         });
         if (history.length > 200) history = history.slice(0, 200);
         stats.scanned = (stats.scanned || 0) + 1;
@@ -300,7 +301,8 @@ function psNormalize(entry) {
         vtPositives: entry.vt_positives != null ? entry.vt_positives : null,
         vtTotalEngines: entry.vt_total_engines != null ? entry.vt_total_engines : null,
         vtVendors: Array.isArray(entry.vt_vendors) ? entry.vt_vendors : null,
-        vtDetails: (entry.vt_details && typeof entry.vt_details === 'object') ? entry.vt_details : null
+        vtDetails: (entry.vt_details && typeof entry.vt_details === 'object') ? entry.vt_details : null,
+        vtError: entry.vt_error || null
     };
 }
 
@@ -506,7 +508,14 @@ function renderVendorGrid(entry, heuristic) {
         setText('vendor-meta', items.length + ' checks · local heuristic');
         if (tip) {
             tip.style.display = 'flex';
-            tip.textContent = 'ℹ️ VirusTotal had no data for this scan (new URL, or the backend key/connection wasn\'t available), so these are local heuristic checks run in your browser instead.';
+            if (entry.vtError) {
+                // Surface the specific reason (rate limit, bad key, timeout...)
+                // instead of the generic "no data" message.
+                tip.textContent = 'ℹ️ VirusTotal unavailable: ' + entry.vtError +
+                    '. Showing local heuristic checks instead.';
+            } else {
+                tip.textContent = 'ℹ️ VirusTotal had no data for this scan (new URL, or the backend key/connection wasn\'t available), so these are local heuristic checks run in your browser instead.';
+            }
         }
     }
 }

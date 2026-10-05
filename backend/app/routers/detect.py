@@ -127,10 +127,14 @@ async def _run_detection(url: str) -> dict:
     # the UI shows an "Unverified" note rather than a confident green 100%.
     if unverified and verdict == "safe":
         risk_score = max(risk_score, 10)
-        message = (
-            "Unverified — VirusTotal had no data for this scan, so this verdict "
-            "is based on local checks only. " + message
+        vt_reason = vt_result.get("error")
+        prefix = (
+            f"Unverified — {vt_reason}. This verdict is based on local checks only. "
+            if vt_reason
+            else "Unverified — VirusTotal had no data for this scan, so this verdict "
+                 "is based on local checks only. "
         )
+        message = prefix + message
 
     return {
         "url": url,

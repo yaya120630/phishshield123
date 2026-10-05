@@ -91,12 +91,15 @@ def _fetch_attributes(url: str, key: str) -> dict:
         if e.code != 404:
             raise
 
-    # 2) VirusTotal has never seen this URL: submit it and wait for the analysis.
+    # 2) VirusTotal has never seen this URL: submit it (form field url=...) and
+    #    poll the analysis every 2s for up to ~15s until status == "completed".
     submitted = _request("POST", "/urls", key, data={"url": url})
     analysis_id = submitted["data"]["id"]
     analysis_attrs = {}
-    for _ in range(6):
-        time.sleep(2)
+    _POLL_INTERVAL_SECONDS = 2
+    _POLL_MAX_ATTEMPTS = 7  # 7 * 2s ~= 14-15s
+    for _ in range(_POLL_MAX_ATTEMPTS):
+        time.sleep(_POLL_INTERVAL_SECONDS)
         analysis = _request("GET", "/analyses/" + analysis_id, key)
         analysis_attrs = analysis["data"]["attributes"]
         if analysis_attrs.get("status") == "completed":
@@ -137,15 +140,24 @@ def _parse(attrs: dict) -> dict:
     order = {"malicious": 0, "suspicious": 1}
     vendors.sort(key=lambda v: (order.get(v["category"], 2), str(v["engine"]).lower()))
 
+    votes = attrs.get("total_votes") or {}
     details = {
         "categories": attrs.get("categories") or {},
-        "first_submission_date": _iso(attrs.get("first_submission_date")),
-        "last_analysis_date": _iso(attrs.get("last_analysis_date")),
-        "last_http_response_code": attrs.get("last_http_response_code"),
-        "title": attrs.get("title"),
-        "final_url": attrs.get("last_final_url"),
-        "times_submitted": attrs.get("times_submitted"),
+        "tags": attrs.get("tags") or [],
         "reputation": attrs.get("reputation"),
+        "total_votes_harmless": votes.get("harmless"),
+        "total_votes_malicious": votes.get("malicious"),
+        "first_submission_date": _iso(attrs.get("first_submission_date")),
+        "last_submission_date": _iso(attrs.get("last_submission_date")),
+        "last_analysis_date": _iso(attrs.get("last_analysis_date")),
+        "last_modification_date": _iso(attrs.get("last_modification_date")),
+        "times_submitted": attrs.get("times_submitted"),
+        "last_final_url": attrs.get("last_final_url"),
+        "last_http_response_code": attrs.get("last_http_response_code"),
+        "last_http_response_content_length": attrs.get("last_http_response_content_length"),
+        "last_http_response_content_sha256": attrs.get("last_http_response_content_sha256"),
+        "html_title": attrs.get("title") or attrs.get("html_title"),
+        "threat_names": attrs.get("threat_names") or [],
     }
 
     return {
