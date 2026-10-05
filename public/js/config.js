@@ -112,14 +112,17 @@ if (typeof firebase !== 'undefined' && !FIREBASE_CONFIG_IS_PLACEHOLDER) {
         return Promise.reject(new Error("Firebase is not configured"));
     };
 
-    if (typeof firebase === 'undefined') {
-        console.warn("Firebase SDK not loaded — cross-browser sync and Auth disabled.");
-    } else if (FIREBASE_CONFIG_IS_PLACEHOLDER) {
-        console.warn(
-            "Firebase config in js/config.js is still the placeholder — " +
-            "paste your real web-app config to enable Auth and cross-browser sync."
-        );
-    }
+    // Firebase is optional — it only powers cross-browser sync and Auth,
+    // neither of which is wired up yet. Its absence is a normal, supported
+    // state (the dashboard runs on chrome.storage / localStorage), so this is
+    // a single calm info line, not a warning that looks like an error.
+    var reason = (typeof firebase === 'undefined')
+        ? "SDK not loaded on this page"
+        : (FIREBASE_CONFIG_IS_PLACEHOLDER ? "config is still the placeholder" : "disabled");
+    console.info(
+        "PhishShield: Firebase optional features off (" + reason + "). " +
+        "Scanning, VirusTotal and local history are unaffected."
+    );
 
     // Still signal readiness so any page listener waiting on this proceeds.
     psDispatchFirebaseReady();
