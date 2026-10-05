@@ -74,7 +74,7 @@
           vt_positives: raw.vt_positives != null ? raw.vt_positives : null,
           vt_total_engines: raw.vt_total_engines != null ? raw.vt_total_engines : null,
           vt_vendors: raw.vt_vendors || null, vt_details: raw.vt_details || null,
-          vt_error: raw.vt_error || null
+          vt_error: raw.vt_error || null, vt_permalink: raw.vt_permalink || null
         });
         if (history.length > 200) history = history.slice(0, 200);
         stats.scanned = (stats.scanned || 0) + 1;
@@ -302,7 +302,8 @@ function psNormalize(entry) {
         vtTotalEngines: entry.vt_total_engines != null ? entry.vt_total_engines : null,
         vtVendors: Array.isArray(entry.vt_vendors) ? entry.vt_vendors : null,
         vtDetails: (entry.vt_details && typeof entry.vt_details === 'object') ? entry.vt_details : null,
-        vtError: entry.vt_error || null
+        vtError: entry.vt_error || null,
+        vtPermalink: entry.vt_permalink || null
     };
 }
 
@@ -502,7 +503,19 @@ function renderVendorGrid(entry, heuristic) {
         setText('vendor-meta', items.length + ' checks · VirusTotal (' + vtSummary + ')');
         if (tip) {
             tip.style.display = 'flex';
-            tip.textContent = 'ℹ️ Vendor results above are from VirusTotal, aggregating 70+ security engines.';
+            var tipText = 'ℹ️ Vendor results above are from VirusTotal, aggregating 70+ security engines.';
+            if (entry.vtPermalink) {
+                // Build with DOM nodes so the permalink is safely escaped.
+                tip.textContent = tipText + ' ';
+                var vtLink = document.createElement('a');
+                vtLink.href = entry.vtPermalink;
+                vtLink.target = '_blank';
+                vtLink.rel = 'noopener noreferrer';
+                vtLink.textContent = 'View on VirusTotal ↗';
+                tip.appendChild(vtLink);
+            } else {
+                tip.textContent = tipText;
+            }
         }
     } else {
         setText('vendor-meta', items.length + ' checks · local heuristic');

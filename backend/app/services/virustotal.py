@@ -59,9 +59,12 @@ def _off(message: str) -> dict:
         "error": message,
         "malicious": 0,
         "suspicious": 0,
+        "harmless": 0,
+        "undetected": 0,
         "total_engines": 0,
         "vendors": [],
         "details": {},
+        "permalink": None,
     }
 
 
@@ -119,12 +122,14 @@ def _iso(ts):
         return None
 
 
-def _parse(attrs: dict) -> dict:
+def _parse(attrs: dict, url: str = "") -> dict:
     stats = attrs.get("last_analysis_stats") or attrs.get("stats") or {}
     results = attrs.get("last_analysis_results") or attrs.get("results") or {}
 
     malicious = int(stats.get("malicious", 0) or 0)
     suspicious = int(stats.get("suspicious", 0) or 0)
+    harmless = int(stats.get("harmless", 0) or 0)
+    undetected = int(stats.get("undetected", 0) or 0)
     total = sum(int(v) for v in stats.values() if isinstance(v, (int, float)))
 
     if total == 0:
@@ -160,14 +165,19 @@ def _parse(attrs: dict) -> dict:
         "threat_names": attrs.get("threat_names") or [],
     }
 
+    permalink = ("https://www.virustotal.com/gui/url/" + _url_id(url)) if url else None
+
     return {
         "enabled": True,
         "error": None,
         "malicious": malicious,
         "suspicious": suspicious,
+        "harmless": harmless,
+        "undetected": undetected,
         "total_engines": total,
         "vendors": vendors,
         "details": details,
+        "permalink": permalink,
     }
 
 
@@ -182,7 +192,7 @@ async def check_url(url: str) -> dict:
 
     try:
         attrs = await asyncio.to_thread(_fetch_attributes, url, key)
-        result = _parse(attrs)
+        result = _parse(attrs, url)
     except urllib.error.HTTPError as e:
         messages = {
             401: "VirusTotal rejected the API key (401) - check the key on Render",

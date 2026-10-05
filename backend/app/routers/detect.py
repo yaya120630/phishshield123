@@ -97,10 +97,24 @@ async def _run_detection(url: str) -> dict:
 
     heur_result = heuristics.score_url(url)
 
+    # Skip the VirusTotal call for clearly-safe, well-known domains (official
+    # brand domains / trusted institutions) to save free-tier quota — only
+    # when local heuristics also found nothing suspicious.
+    skip_vt = heuristics.is_well_known_safe(url) and heur_result.get("score", 0) < 30
+
+    async def _vt():
+        if skip_vt:
+            return {
+                "enabled": False, "error": None, "malicious": 0, "suspicious": 0,
+                "harmless": 0, "undetected": 0, "total_engines": 0,
+                "vendors": [], "details": {}, "permalink": None, "skipped": True,
+            }
+        return await virustotal.check_url(url)
+
     # VirusTotal and domain age run concurrently first, then Gemini gets
     # their results as context for a better verdict.
     vt_result, age_days = await asyncio.gather(
-        virustotal.check_url(url),
+        _vt(),
         domain_age.get_domain_age_days(url),
     )
 
@@ -113,10 +127,12 @@ async def _run_detection(url: str) -> dict:
 
     vt_ok = bool(vt_result.get("enabled"))
     ai_ok = bool(ai_result.get("available"))
+    vt_skipped = bool(vt_result.get("skipped"))
 
     # "unverified" when no external reputation source (VirusTotal / Gemini)
     # could confirm the result — the verdict rests on local heuristics alone.
-    unverified = (not vt_ok) and (not ai_ok)
+    # A deliberately skipped VT on a well-known-safe domain is NOT unverified.
+    unverified = (not vt_ok) and (not ai_ok) and (not vt_skipped)
 
     message = ai_result.get("message") or _fallback_message(
         verdict, vt_result, age_days, heur_result
@@ -144,6 +160,7 @@ async def _run_detection(url: str) -> dict:
         "vt_total_engines": vt_result.get("total_engines", 0) if vt_ok else None,
         "vt_vendors": vt_result.get("vendors", []) if vt_ok else [],
         "vt_details": vt_result.get("details", {}) if vt_ok else {},
+        "vt_permalink": vt_result.get("permalink") if vt_ok else None,
         "domain_age_days": age_days,
         "awareness_message": message,
         "vt_enabled": vt_ok,

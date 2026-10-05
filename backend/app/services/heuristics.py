@@ -105,6 +105,16 @@ def _is_trusted(host: str) -> bool:
     return host.endswith(TRUSTED_SUFFIXES)
 
 
+def is_well_known_safe(url: str) -> bool:
+    """True for official brand domains and trusted institutions. Used to skip
+    the VirusTotal call on clearly-safe hosts and save free-tier quota."""
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except Exception:
+        return False
+    return bool(host) and (_is_official(host) or _is_trusted(host))
+
+
 def _lookalike_brand(host: str):
     """Host embeds an official domain as a label (e.g. "roblox.com." in
     "roblox.com.do") but is not on that domain. Returns the imitated brand."""
