@@ -116,6 +116,14 @@ var PS_VERDICT_COLORS = {
     safe:   { fg: '#1FAE7A', bg: '#E7F9F1' }
 };
 
+// A reason is a FLAG unless it is a "no risk" all-clear line. Matches
+// "No risk indicators", "No local risk indicators" and "No strong risk
+// indicators" so those never render red as Flagged.
+var PS_NO_RISK_RE = /^no (local |strong )?risk indicators/i;
+function psReasonIsFlag(reason) {
+    return !PS_NO_RISK_RE.test(String(reason || '').trim());
+}
+
 var psState = {
     history: [],
     stats: { scanned: 0, threats: 0, safe: 0 },
@@ -387,10 +395,17 @@ function renderLatest(entry, heuristic) {
     var pctLabel = isSafe ? 'safety' : 'risk';
     var r = 64, c = 2 * Math.PI * r, offset = c - (pct / 100) * c;
 
+    // When VirusTotal returned no data, a "safe" verdict is only locally
+    // checked — mark it Unverified next to the badge instead of a plain green.
+    var vtHadNoData = entry.vtTotalEngines == null;
+    var unverifiedNote = (isSafe && vtHadNoData)
+        ? '<span class="verdict-unverified" title="VirusTotal had no data for this scan, so this verdict is based on local checks only.">Unverified · VirusTotal had no data</span>'
+        : '';
+
     var tagsHtml = '';
     if (heuristic.reasons && heuristic.reasons.length) {
         heuristic.reasons.slice(0, 4).forEach(function (reason) {
-            var isFlag = reason.indexOf('No risk indicators') === -1;
+            var isFlag = psReasonIsFlag(reason);
             tagsHtml += '<span class="tag' + (isFlag ? ' flag' : '') + '">' + escapeHtml(reason) + '</span>';
         });
     }
@@ -412,6 +427,7 @@ function renderLatest(entry, heuristic) {
         '      <div class="ring-txt"><div class="n">' + pct + '%</div><div class="d">' + pctLabel + '</div></div>' +
         '    </div>' +
         '    <span class="verdict" style="background:' + colors.bg + ';color:' + colors.fg + '">' + entry.verdictLabel + '</span>' +
+        unverifiedNote +
         '  </div>' +
         '  <div class="url-meta">' +
         '    <div class="name">' + escapeHtml(entry.url) + '</div>' +
@@ -459,7 +475,7 @@ function renderVendorGrid(entry, heuristic) {
         });
     } else if (heuristic.reasons && heuristic.reasons.length) {
         heuristic.reasons.forEach(function (reason) {
-            var flagged = reason.indexOf('No risk indicators') === -1;
+            var flagged = psReasonIsFlag(reason);
             items.push({
                 name: reason.length > 42 ? reason.slice(0, 39) + '…' : reason,
                 clean: !flagged,

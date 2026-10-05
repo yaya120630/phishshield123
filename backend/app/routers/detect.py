@@ -108,16 +108,34 @@ async def _run_detection(url: str) -> dict:
 
     combined = _combine(vt_result, ai_result, heur_result, age_days)
 
-    message = ai_result.get("message") or _fallback_message(
-        combined["verdict"], vt_result, age_days, heur_result
-    )
+    verdict = combined["verdict"]
+    risk_score = combined["risk_score"]
 
     vt_ok = bool(vt_result.get("enabled"))
+    ai_ok = bool(ai_result.get("available"))
+
+    # "unverified" when no external reputation source (VirusTotal / Gemini)
+    # could confirm the result — the verdict rests on local heuristics alone.
+    unverified = (not vt_ok) and (not ai_ok)
+
+    message = ai_result.get("message") or _fallback_message(
+        verdict, vt_result, age_days, heur_result
+    )
+
+    # Never present a confident "safe" (0 risk) when nothing external verified
+    # it. Keep the "safe" verdict but mark it unverified and floor the score so
+    # the UI shows an "Unverified" note rather than a confident green 100%.
+    if unverified and verdict == "safe":
+        risk_score = max(risk_score, 10)
+        message = (
+            "Unverified — VirusTotal had no data for this scan, so this verdict "
+            "is based on local checks only. " + message
+        )
 
     return {
         "url": url,
-        "verdict": combined["verdict"],
-        "confidence_score": round(combined["risk_score"] / 100, 4),
+        "verdict": verdict,
+        "confidence_score": round(risk_score / 100, 4),
         "vt_positives": vt_result.get("malicious", 0) if vt_ok else None,
         "vt_total_engines": vt_result.get("total_engines", 0) if vt_ok else None,
         "vt_vendors": vt_result.get("vendors", []) if vt_ok else [],
@@ -126,6 +144,7 @@ async def _run_detection(url: str) -> dict:
         "awareness_message": message,
         "vt_enabled": vt_ok,
         "vt_error": vt_result.get("error"),
+        "unverified": unverified,
     }
 
 @router.post("/api/detect")

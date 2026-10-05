@@ -32,6 +32,8 @@ const PHISHSHIELD_USER_ALLOWLIST = [
 const PS_DEFAULT_BRANDS = [
   "microsoft", "outlook", "google", "gmail", "paypal", "apple", "icloud",
   "facebook", "instagram", "amazon", "netflix", "linkedin",
+  "roblox", "discord", "steam", "tiktok", "whatsapp", "telegram",
+  "shopee", "lazada", "touchngo", "tng", "grab",
   "maybank", "cimb", "publicbank", "rhb", "hsbc", "dhl"
 ];
 
@@ -41,10 +43,50 @@ const PS_DEFAULT_OFFICIAL_DOMAINS = [
   "google.com", "gmail.com", "youtube.com", "google.com.my", "googleusercontent.com",
   "paypal.com", "apple.com", "icloud.com", "facebook.com", "fb.com", "messenger.com",
   "instagram.com", "meta.com", "amazon.com", "amazon.co.uk", "amazon.de", "amazon.sg",
-  "netflix.com", "linkedin.com", "maybank2u.com.my", "maybank.com",
+  "netflix.com", "linkedin.com",
+  "roblox.com", "rbxcdn.com", "discord.com", "discordapp.com", "discord.gg",
+  "steampowered.com", "steamcommunity.com", "tiktok.com", "whatsapp.com", "wa.me",
+  "telegram.org", "t.me", "shopee.com", "shopee.com.my", "shopee.sg",
+  "lazada.com", "lazada.com.my", "lazada.sg", "touchngo.com.my", "tngdigital.com.my",
+  "grab.com",
+  "maybank2u.com.my", "maybank.com",
   "cimbclicks.com.my", "cimb.com.my", "cimb.com", "pbebank.com", "publicbank.com.my",
   "rhbgroup.com", "rhbbank.com.my", "hsbc.com", "hsbc.com.my", "dhl.com"
 ];
+
+// Map a brand token to its canonical official domain(s), so the lookalike
+// rule can report which brand a hostname is imitating.
+const PS_BRAND_OFFICIAL_DOMAINS = {
+  microsoft: ["microsoft.com", "microsoftonline.com"],
+  outlook: ["outlook.com", "live.com"],
+  google: ["google.com"],
+  gmail: ["gmail.com", "google.com"],
+  paypal: ["paypal.com"],
+  apple: ["apple.com", "icloud.com"],
+  icloud: ["icloud.com"],
+  facebook: ["facebook.com", "fb.com"],
+  instagram: ["instagram.com"],
+  amazon: ["amazon.com"],
+  netflix: ["netflix.com"],
+  linkedin: ["linkedin.com"],
+  roblox: ["roblox.com", "rbxcdn.com"],
+  discord: ["discord.com", "discordapp.com"],
+  steam: ["steampowered.com", "steamcommunity.com"],
+  tiktok: ["tiktok.com"],
+  whatsapp: ["whatsapp.com"],
+  telegram: ["telegram.org"],
+  shopee: ["shopee.com", "shopee.com.my"],
+  lazada: ["lazada.com", "lazada.com.my"],
+  touchngo: ["touchngo.com.my", "tngdigital.com.my"],
+  tng: ["tngdigital.com.my", "touchngo.com.my"],
+  grab: ["grab.com"],
+  maybank: ["maybank2u.com.my", "maybank.com"],
+  cimb: ["cimbclicks.com.my", "cimb.com.my", "cimb.com"],
+  publicbank: ["pbebank.com", "publicbank.com.my"],
+  rhb: ["rhbgroup.com", "rhbbank.com.my"],
+  hsbc: ["hsbc.com", "hsbc.com.my"],
+  dhl: ["dhl.com"],
+};
 
 function psHostMatches(host, domain) {
   return host === domain || host.endsWith("." + domain);
@@ -59,6 +101,38 @@ function psIsTrusted(host) {
     PHISHSHIELD_USER_ALLOWLIST.some(d => psHostMatches(host, d)) ||
     PHISHSHIELD_TRUSTED_SUFFIXES.some(s => host.endsWith(s))
   );
+}
+
+// Lookalike-suffix check: the hostname contains an official domain followed by
+// a dot (e.g. "roblox.com." in "roblox.com.do", or "paypal.com." in
+// "paypal.com.secure-login.top") but the host is NEITHER that official domain
+// NOR a real subdomain of it. That is a classic domain-spoofing pattern.
+// Returns the imitated brand name, or null.
+function psLookalikeBrand(host) {
+  for (const brand of PS_DEFAULT_BRANDS) {
+    const domains = PS_BRAND_OFFICIAL_DOMAINS[brand] || [];
+    for (const domain of domains) {
+      // Legitimately on/under the official domain → not a lookalike.
+      if (psHostMatches(host, domain)) return null;
+      if (host.includes(domain + ".")) {
+        return brand;
+      }
+    }
+  }
+  return null;
+}
+
+// Token/label brand match: the brand must appear as a whole dot-separated
+// label (or a label token split on non-alphanumerics), so "apple" matches
+// "apple-login.com" but NOT "pineapple.com".
+function psBrandTokenHit(host) {
+  const labels = host.split(".");
+  const tokens = new Set();
+  for (const label of labels) {
+    tokens.add(label);
+    label.split(/[^a-z0-9]+/).filter(Boolean).forEach(t => tokens.add(t));
+  }
+  return PS_DEFAULT_BRANDS.find(b => tokens.has(b)) || null;
 }
 
 // Additive RISK model: start at 0 and add points for each red flag. This is
@@ -84,11 +158,20 @@ function phishshieldScoreUrl(urlStr) {
       return { score: 99, verdict: "safe", reasons: [] };
     }
 
-    // 2. Brand impersonation: a known brand name appears in the hostname but
-    //    the domain is NOT the brand's official domain. Strong phishing tell.
-    const hostTokens = host.split(/[^a-z0-9]+/).filter(Boolean);
-    const brandHit = PS_DEFAULT_BRANDS.find(b => hostTokens.includes(b) || host.includes(b));
-    if (brandHit) {
+    // 2a. Lookalike-suffix spoofing: the host embeds an official domain as a
+    //     label but is not actually on it (e.g. roblox.com.do). Strong flag
+    //     (equivalent to the requested -50 in a safety-score model).
+    const lookalikeBrand = psLookalikeBrand(host);
+    if (lookalikeBrand) {
+      risk += 55;
+      reasons.push("Imitates " + lookalikeBrand + " domain");
+    }
+
+    // 2b. Brand impersonation: a brand name appears as a whole hostname label
+    //     (token/label match, so "pineapple" does NOT match "apple") but the
+    //     domain is not the brand's official one.
+    const brandHit = psBrandTokenHit(host);
+    if (brandHit && brandHit !== lookalikeBrand) {
       risk += 55;
       reasons.push("Impersonates a known brand (" + brandHit + ") on an unofficial domain");
     }

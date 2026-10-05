@@ -29,7 +29,9 @@ RISKY_TLDS = {
 BRANDS = [
     "microsoft", "outlook", "office365", "google", "gmail", "paypal",
     "apple", "icloud", "facebook", "instagram", "amazon", "netflix",
-    "linkedin", "maybank", "cimb", "publicbank", "rhb", "hsbc", "dhl",
+    "linkedin", "roblox", "discord", "steam", "tiktok", "whatsapp",
+    "telegram", "shopee", "lazada", "touchngo", "tng", "grab",
+    "maybank", "cimb", "publicbank", "rhb", "hsbc", "dhl",
 ]
 
 OFFICIAL_DOMAINS = [
@@ -38,10 +40,50 @@ OFFICIAL_DOMAINS = [
     "google.com", "gmail.com", "youtube.com", "googleusercontent.com",
     "paypal.com", "apple.com", "icloud.com", "facebook.com", "fb.com", "messenger.com",
     "instagram.com", "meta.com", "amazon.com", "amazon.co.uk", "amazon.sg",
-    "netflix.com", "linkedin.com", "maybank2u.com.my", "maybank.com",
+    "netflix.com", "linkedin.com",
+    "roblox.com", "rbxcdn.com", "discord.com", "discordapp.com", "discord.gg",
+    "steampowered.com", "steamcommunity.com", "tiktok.com", "whatsapp.com", "wa.me",
+    "telegram.org", "t.me", "shopee.com", "shopee.com.my", "shopee.sg",
+    "lazada.com", "lazada.com.my", "lazada.sg", "touchngo.com.my", "tngdigital.com.my",
+    "grab.com",
+    "maybank2u.com.my", "maybank.com",
     "cimbclicks.com.my", "cimb.com.my", "cimb.com", "pbebank.com", "publicbank.com.my",
     "rhbgroup.com", "rhbbank.com.my", "hsbc.com", "hsbc.com.my", "dhl.com",
 ]
+
+# Brand -> its canonical official domains, used by the lookalike-suffix check.
+BRAND_OFFICIAL_DOMAINS = {
+    "microsoft": ["microsoft.com", "microsoftonline.com"],
+    "outlook": ["outlook.com", "live.com"],
+    "office365": ["office365.com", "office.com"],
+    "google": ["google.com"],
+    "gmail": ["gmail.com", "google.com"],
+    "paypal": ["paypal.com"],
+    "apple": ["apple.com", "icloud.com"],
+    "icloud": ["icloud.com"],
+    "facebook": ["facebook.com", "fb.com"],
+    "instagram": ["instagram.com"],
+    "amazon": ["amazon.com"],
+    "netflix": ["netflix.com"],
+    "linkedin": ["linkedin.com"],
+    "roblox": ["roblox.com", "rbxcdn.com"],
+    "discord": ["discord.com", "discordapp.com"],
+    "steam": ["steampowered.com", "steamcommunity.com"],
+    "tiktok": ["tiktok.com"],
+    "whatsapp": ["whatsapp.com"],
+    "telegram": ["telegram.org"],
+    "shopee": ["shopee.com", "shopee.com.my"],
+    "lazada": ["lazada.com", "lazada.com.my"],
+    "touchngo": ["touchngo.com.my", "tngdigital.com.my"],
+    "tng": ["tngdigital.com.my", "touchngo.com.my"],
+    "grab": ["grab.com"],
+    "maybank": ["maybank2u.com.my", "maybank.com"],
+    "cimb": ["cimbclicks.com.my", "cimb.com.my", "cimb.com"],
+    "publicbank": ["pbebank.com", "publicbank.com.my"],
+    "rhb": ["rhbgroup.com", "rhbbank.com.my"],
+    "hsbc": ["hsbc.com", "hsbc.com.my"],
+    "dhl": ["dhl.com"],
+}
 
 TRUSTED_SUFFIXES = (
     ".edu.my", ".gov.my", ".mil.my", ".edu", ".gov", ".mil",
@@ -61,6 +103,30 @@ def _is_official(host: str) -> bool:
 
 def _is_trusted(host: str) -> bool:
     return host.endswith(TRUSTED_SUFFIXES)
+
+
+def _lookalike_brand(host: str):
+    """Host embeds an official domain as a label (e.g. "roblox.com." in
+    "roblox.com.do") but is not on that domain. Returns the imitated brand."""
+    for brand, domains in BRAND_OFFICIAL_DOMAINS.items():
+        for domain in domains:
+            if _host_matches(host, domain):
+                return None
+            if (domain + ".") in host:
+                return brand
+    return None
+
+
+def _brand_token_hit(host: str):
+    """Brand appears as a whole dot/non-alnum label (so "pineapple" does NOT
+    match "apple"). Returns the brand or None."""
+    tokens = set()
+    for label in host.split("."):
+        tokens.add(label)
+        for tok in re.split(r"[^a-z0-9]+", label):
+            if tok:
+                tokens.add(tok)
+    return next((b for b in BRANDS if b in tokens), None)
 
 
 def score_url(url: str) -> dict:
@@ -84,10 +150,17 @@ def score_url(url: str) -> dict:
     tld = host.rsplit(".", 1)[-1]
     lower_url = url.lower()
 
-    # Brand impersonation on an unofficial domain.
-    host_tokens = re.split(r"[^a-z0-9]+", host)
-    brand_hit = next((b for b in BRANDS if b in host_tokens or b in host), None)
-    if brand_hit:
+    # Lookalike-suffix spoofing: host embeds an official domain but is not on
+    # it (e.g. roblox.com.do, paypal.com.secure-login.top). Strong flag.
+    lookalike_brand = _lookalike_brand(host)
+    if lookalike_brand:
+        risk += 55
+        reasons.append(f"Imitates {lookalike_brand} domain")
+
+    # Brand impersonation via a whole hostname label (token match, so
+    # "pineapple" does NOT match "apple") on an unofficial domain.
+    brand_hit = _brand_token_hit(host)
+    if brand_hit and brand_hit != lookalike_brand:
         risk += 55
         reasons.append(f"Impersonates a known brand ({brand_hit}) on an unofficial domain")
 
