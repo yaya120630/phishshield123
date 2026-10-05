@@ -262,4 +262,35 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ ok: true });
         return true;
     }
+
+    // "Go back to safety" on blocked.html — leave the blocked page. Go back in
+    // this tab's history if possible; if there's nowhere to go back to (the
+    // blocked navigation was the first thing in the tab), close the tab.
+    if (request.action === 'goBackFromBlocked') {
+        const tabId = sender.tab && sender.tab.id;
+        if (tabId == null) { sendResponse({ ok: false }); return true; }
+        chrome.tabs.goBack(tabId, () => {
+            if (chrome.runtime.lastError) {
+                // No history entry to go back to — close the tab instead.
+                chrome.tabs.remove(tabId);
+            }
+        });
+        sendResponse({ ok: true });
+        return true;
+    }
+
+    // "Continue anyway" on blocked.html — allow this URL for the rest of the
+    // browsing session, then navigate the tab to it. onBeforeNavigate sees the
+    // allowlist entry and lets it through instead of blocking again.
+    if (request.action === 'continueToBlockedUrl') {
+        const tabId = sender.tab && sender.tab.id;
+        const url = request.url;
+        if (tabId == null || !url) { sendResponse({ ok: false }); return true; }
+        allowUrlThisSession(url).then(() => {
+            chrome.tabs.update(tabId, { url: url }, () => {
+                sendResponse({ ok: !chrome.runtime.lastError });
+            });
+        }).catch(() => sendResponse({ ok: false }));
+        return true; // async sendResponse
+    }
 });
