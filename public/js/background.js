@@ -122,7 +122,12 @@ async function warnTabIfRisky(tabId, result, url) {
                 risk_score: (typeof result.risk_score === 'number') ? result.risk_score
                     : (typeof result.confidence === 'number' ? result.confidence : null),
                 vt_positives: result.vt_positives != null ? result.vt_positives : null,
-                vt_total_engines: result.vt_total_engines != null ? result.vt_total_engines : null
+                vt_total_engines: result.vt_total_engines != null ? result.vt_total_engines : null,
+                stats: {
+                    scanned: stats.scanned || 0,
+                    threats: stats.threats || 0,
+                    safe: stats.safe || 0
+                }
             }
         }, function () { void chrome.runtime.lastError; });
     } catch (e) {
