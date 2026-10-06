@@ -105,34 +105,44 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
     }).catch(err => console.error(err));
 });
 
-// Try to open the REAL toolbar popup (popup.html) programmatically. Chrome
-// only permits this in recent versions and under certain conditions; when it
-// refuses, we swallow the error and rely on the injected on-page card instead.
-// We stash the latest risky scan so popup.js can paint it instantly on open.
-function tryOpenPopup(tabId, data) {
+// Try to open the REAL toolbar popup (popup.html) programmatically and stash
+// the latest risky scan so popup.js paints it instantly on open. Returns a
+// promise that resolves TRUE when the popup actually opened, FALSE when Chrome
+// refused (older versions / no gesture / unfocused window).
+function tryOpenPopup(data) {
     try {
         chrome.storage.local.set({ lastScanResult: data, lastScanAt: Date.now() });
     } catch (e) { /* ignore */ }
-    if (!chrome.action || typeof chrome.action.openPopup !== 'function') return;
+    if (!chrome.action || typeof chrome.action.openPopup !== 'function') {
+        return Promise.resolve(false);
+    }
     try {
         var p = chrome.action.openPopup();
-        if (p && typeof p.catch === 'function') p.catch(function () { /* Chrome refused — card still shows */ });
-    } catch (e) { /* Chrome refused — card still shows */ }
+        if (p && typeof p.then === 'function') {
+            return p.then(function () { return true; }).catch(function () { return false; });
+        }
+        return Promise.resolve(true); // older callback-style: assume it opened
+    } catch (e) {
+        return Promise.resolve(false);
+    }
 }
 
 // Auto Scan on Load Complete
-// Show the warning on a suspicious/phishing tab. content.js is not a registered
-// content script (so it never slows down safe pages); we inject it on demand,
-// then message it. We also TRY to open the real toolbar popup. Safe pages get
-// nothing.
+// Warn on a suspicious/phishing tab. First TRY to open the real toolbar popup.
+// Only if Chrome refuses do we inject the on-page card fallback — so the user
+// never sees BOTH at once. content.js is injected on demand (safe pages get
+// nothing).
+var _popupShownByTab = {}; // tabId -> timestamp we opened the popup
+
 async function warnTabIfRisky(tabId, result, url) {
     if (!result || (result.status !== 'suspicious' && result.status !== 'phishing')) return;
-    // Attempt the real popup first (instant if Chrome allows it). Store the
-    // result in the SAME shape popup.js's own scan uses (capitalized verdict,
-    // numeric confidence 0-100, description) so the popup paints it instantly.
+
+    // Store the result in the SAME shape popup.js's own scan uses (capitalized
+    // verdict, numeric confidence 0-100, description) so the popup paints it
+    // instantly, then attempt to open the real toolbar popup.
     var riskNum = (typeof result.risk_score === 'number') ? result.risk_score
         : (typeof result.confidence === 'number' ? result.confidence : 0);
-    tryOpenPopup(tabId, {
+    var popupOpened = await tryOpenPopup({
         url: url || '',
         verdict: result.status === 'phishing' ? 'Phishing' : 'Suspicious',
         confidence: Math.round(riskNum),
@@ -142,6 +152,21 @@ async function warnTabIfRisky(tabId, result, url) {
         vt_positives: result.vt_positives != null ? result.vt_positives : null,
         vt_total_engines: result.vt_total_engines != null ? result.vt_total_engines : null
     });
+
+    // Real popup opened — remember it and do NOT also show the on-page card
+    // (that was the duplicate on the right). The popup alone is enough.
+    if (popupOpened) {
+        _popupShownByTab[tabId] = Date.now();
+        return;
+    }
+
+    // If we already opened the popup for this tab moments ago (e.g. the fast
+    // local path opened it and now the backend path arrives), don't inject a
+    // card on top of the open popup.
+    if (_popupShownByTab[tabId] && (Date.now() - _popupShownByTab[tabId]) < 20000) {
+        return;
+    }
+
     try {
         await chrome.scripting.executeScript({ target: { tabId: tabId }, files: ['js/content.js'] });
         chrome.tabs.sendMessage(tabId, {
@@ -205,6 +230,7 @@ chrome.webNavigation.onCompleted.addListener(async (details) => {
 chrome.tabs.onRemoved.addListener((tabId) => {
     delete tabVerdicts[tabId];
     delete lastScanByTab[tabId];
+    delete _popupShownByTab[tabId];
 });
 
 // Normalize API payload & extract VirusTotal data
