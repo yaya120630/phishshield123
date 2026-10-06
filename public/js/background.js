@@ -109,15 +109,20 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
 // Show the in-page warning banner on a suspicious/phishing tab. content.js is
 // not a registered content script (so it never slows down safe pages), so we
 // inject it on demand, then message it. Safe pages get nothing.
-async function warnTabIfRisky(tabId, result) {
+async function warnTabIfRisky(tabId, result, url) {
     if (!result || (result.status !== 'suspicious' && result.status !== 'phishing')) return;
     try {
         await chrome.scripting.executeScript({ target: { tabId: tabId }, files: ['js/content.js'] });
         chrome.tabs.sendMessage(tabId, {
             type: 'SHOW_WARNING',
             data: {
+                url: url || '',
                 verdict: result.status,
-                awareness_message: result.message || ''
+                awareness_message: result.message || '',
+                risk_score: (typeof result.risk_score === 'number') ? result.risk_score
+                    : (typeof result.confidence === 'number' ? result.confidence : null),
+                vt_positives: result.vt_positives != null ? result.vt_positives : null,
+                vt_total_engines: result.vt_total_engines != null ? result.vt_total_engines : null
             }
         }, function () { void chrome.runtime.lastError; });
     } catch (e) {
@@ -143,8 +148,9 @@ chrome.webNavigation.onCompleted.addListener(async (details) => {
                 setBadgeForVerdict(details.tabId, quickStatus);
                 warnTabIfRisky(details.tabId, {
                     status: quickStatus,
-                    message: (quick.reasons || []).slice(0, 2).join('; ')
-                });
+                    message: (quick.reasons || []).slice(0, 2).join('; '),
+                    risk_score: (typeof quick.score === 'number') ? (100 - quick.score) : null
+                }, url);
             }
         }
     } catch (e) { /* ignore */ }
@@ -154,7 +160,7 @@ chrome.webNavigation.onCompleted.addListener(async (details) => {
         tabVerdicts[details.tabId] = result.status;
         setBadgeForVerdict(details.tabId, result.status);
         // Confirm/upgrade the warning with the full backend verdict.
-        warnTabIfRisky(details.tabId, result);
+        warnTabIfRisky(details.tabId, result, url);
     } catch (error) {
         console.error('Auto-scan error:', error);
     }
