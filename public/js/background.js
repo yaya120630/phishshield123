@@ -105,12 +105,43 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
     }).catch(err => console.error(err));
 });
 
+// Try to open the REAL toolbar popup (popup.html) programmatically. Chrome
+// only permits this in recent versions and under certain conditions; when it
+// refuses, we swallow the error and rely on the injected on-page card instead.
+// We stash the latest risky scan so popup.js can paint it instantly on open.
+function tryOpenPopup(tabId, data) {
+    try {
+        chrome.storage.local.set({ lastScanResult: data, lastScanAt: Date.now() });
+    } catch (e) { /* ignore */ }
+    if (!chrome.action || typeof chrome.action.openPopup !== 'function') return;
+    try {
+        var p = chrome.action.openPopup();
+        if (p && typeof p.catch === 'function') p.catch(function () { /* Chrome refused — card still shows */ });
+    } catch (e) { /* Chrome refused — card still shows */ }
+}
+
 // Auto Scan on Load Complete
-// Show the in-page warning banner on a suspicious/phishing tab. content.js is
-// not a registered content script (so it never slows down safe pages), so we
-// inject it on demand, then message it. Safe pages get nothing.
+// Show the warning on a suspicious/phishing tab. content.js is not a registered
+// content script (so it never slows down safe pages); we inject it on demand,
+// then message it. We also TRY to open the real toolbar popup. Safe pages get
+// nothing.
 async function warnTabIfRisky(tabId, result, url) {
     if (!result || (result.status !== 'suspicious' && result.status !== 'phishing')) return;
+    // Attempt the real popup first (instant if Chrome allows it). Store the
+    // result in the SAME shape popup.js's own scan uses (capitalized verdict,
+    // numeric confidence 0-100, description) so the popup paints it instantly.
+    var riskNum = (typeof result.risk_score === 'number') ? result.risk_score
+        : (typeof result.confidence === 'number' ? result.confidence : 0);
+    tryOpenPopup(tabId, {
+        url: url || '',
+        verdict: result.status === 'phishing' ? 'Phishing' : 'Suspicious',
+        confidence: Math.round(riskNum),
+        riskPct: Math.round(riskNum),
+        safetyPct: Math.max(0, 100 - Math.round(riskNum)),
+        description: result.message || '',
+        vt_positives: result.vt_positives != null ? result.vt_positives : null,
+        vt_total_engines: result.vt_total_engines != null ? result.vt_total_engines : null
+    });
     try {
         await chrome.scripting.executeScript({ target: { tabId: tabId }, files: ['js/content.js'] });
         chrome.tabs.sendMessage(tabId, {
