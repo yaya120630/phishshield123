@@ -95,12 +95,15 @@ def _fetch_attributes(url: str, key: str) -> dict:
             raise
 
     # 2) VirusTotal has never seen this URL: submit it (form field url=...) and
-    #    poll the analysis every 2s for up to ~15s until status == "completed".
+    #    briefly poll the analysis. Kept short (~6s) so an auto-scan on every
+    #    page load stays snappy — if it's not ready in time we return what we
+    #    have and the next scan picks up the completed report (it's cached by
+    #    then). The frontend falls back to heuristics meanwhile.
     submitted = _request("POST", "/urls", key, data={"url": url})
     analysis_id = submitted["data"]["id"]
     analysis_attrs = {}
     _POLL_INTERVAL_SECONDS = 2
-    _POLL_MAX_ATTEMPTS = 7  # 7 * 2s ~= 14-15s
+    _POLL_MAX_ATTEMPTS = 3  # 3 * 2s ~= 6s
     for _ in range(_POLL_MAX_ATTEMPTS):
         time.sleep(_POLL_INTERVAL_SECONDS)
         analysis = _request("GET", "/analyses/" + analysis_id, key)
