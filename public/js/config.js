@@ -33,13 +33,14 @@ PS_GLOBAL.PHISHSHIELD_CONFIG = PHISHSHIELD_CONFIG;
 // (cross-browser scan sync). Until you paste the real values, those
 // features are disabled automatically instead of crashing the page.
 var firebaseConfig = {
-    apiKey: "AIzaSyDummyKey_ReplaceWithYourActualFirebaseApiKeyIfUsingAuth",
+    apiKey: "AIzaSyBYBHsnMWgQvEXyxaMUYWVP2zw7ujEStR8",
     authDomain: "phishshield-904ab.firebaseapp.com",
-    databaseURL: "https://phishshield-904ab-default-rtdb.firebaseio.com",
+    databaseURL: "https://phishshield-904ab-default-rtdb.asia-southeast1.firebasedatabase.app",
     projectId: "phishshield-904ab",
-    storageBucket: "phishshield-904ab.appspot.com",
-    messagingSenderId: "1234567890",
-    appId: "1:1234567890:web:abcdef1234567890"
+    storageBucket: "phishshield-904ab.firebasestorage.app",
+    messagingSenderId: "90864629721",
+    appId: "1:90864629721:web:7cd18093e62e406d4fcbc8",
+    measurementId: "G-9K9CB26H0K"
 };
 
 // True while config.js still holds the shipped placeholders. When true we

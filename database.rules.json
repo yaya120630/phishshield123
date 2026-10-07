@@ -1,0 +1,22 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "community": {
+      ".read": true,
+      ".write": true,
+      "$urlKey": {
+        "url": { ".validate": "newData.isString() && newData.val().length <= 2048" },
+        "comments": {
+          "$commentId": {
+            "who": { ".validate": "newData.isString() && newData.val().length <= 40" },
+            "text": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 500" },
+            "ts": { ".validate": "newData.isString() && newData.val().length <= 40" },
+            "$other": { ".validate": false }
+          }
+        },
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}
