@@ -99,9 +99,37 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
 
     chrome.tabs.update(details.tabId, { url: blockedUrl });
 
+    // Also open the extension popup for a BLOCKED link (same as a suspicious
+    // site), so the user sees the Scanner interface with the verdict + risk.
+    // The tab becomes blocked.html (a chrome-extension:// page) where the
+    // on-page card can't inject, so this attempts the toolbar popup only.
+    tryOpenPopup({
+        url: url,
+        verdict: 'Phishing',
+        confidence: Math.max(0, Math.min(100, 100 - Math.round(quick.score))),
+        riskPct: Math.max(0, Math.min(100, 100 - Math.round(quick.score))),
+        safetyPct: Math.round(quick.score),
+        description: (quick.reasons || []).slice(0, 2).join('; ') || 'This link was blocked as a phishing threat.',
+        vt_positives: null,
+        vt_total_engines: null
+    });
+
     scanUrl(url).then((result) => {
         tabVerdicts[details.tabId] = result.status;
         setBadgeForVerdict(details.tabId, result.status);
+        // Refresh the stored result with the fuller backend verdict (VT count
+        // etc.) so if the user clicks the extension icon it shows the latest.
+        // storeOnly=true so we don't pop the popup open a second time.
+        tryOpenPopup({
+            url: url,
+            verdict: result.status === 'phishing' ? 'Phishing' : (result.status === 'suspicious' ? 'Suspicious' : 'Phishing'),
+            confidence: Math.round(typeof result.risk_score === 'number' ? result.risk_score : (result.confidence || 0)),
+            riskPct: Math.round(typeof result.risk_score === 'number' ? result.risk_score : (result.confidence || 0)),
+            safetyPct: Math.max(0, 100 - Math.round(typeof result.risk_score === 'number' ? result.risk_score : (result.confidence || 0))),
+            description: result.message || '',
+            vt_positives: result.vt_positives != null ? result.vt_positives : null,
+            vt_total_engines: result.vt_total_engines != null ? result.vt_total_engines : null
+        }, true);
     }).catch(err => console.error(err));
 });
 
@@ -109,10 +137,11 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
 // the latest risky scan so popup.js paints it instantly on open. Returns a
 // promise that resolves TRUE when the popup actually opened, FALSE when Chrome
 // refused (older versions / no gesture / unfocused window).
-function tryOpenPopup(data) {
+function tryOpenPopup(data, storeOnly) {
     try {
         chrome.storage.local.set({ lastScanResult: data, lastScanAt: Date.now() });
     } catch (e) { /* ignore */ }
+    if (storeOnly) return Promise.resolve(false);
     if (!chrome.action || typeof chrome.action.openPopup !== 'function') {
         return Promise.resolve(false);
     }
