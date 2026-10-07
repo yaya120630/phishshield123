@@ -153,17 +153,19 @@ async function warnTabIfRisky(tabId, result, url) {
         vt_total_engines: result.vt_total_engines != null ? result.vt_total_engines : null
     });
 
-    // Real popup opened — remember it and do NOT also show the on-page card
-    // (that was the duplicate on the right). The popup alone is enough.
+    // Real popup opened — do NOT also show the on-page card (avoids the
+    // duplicate). Record it only so a backend-path call seconds later (same
+    // tab, same navigation) doesn't stack a card on top of the open popup.
     if (popupOpened) {
         _popupShownByTab[tabId] = Date.now();
         return;
     }
 
-    // If we already opened the popup for this tab moments ago (e.g. the fast
-    // local path opened it and now the backend path arrives), don't inject a
-    // card on top of the open popup.
-    if (_popupShownByTab[tabId] && (Date.now() - _popupShownByTab[tabId]) < 20000) {
+    // Popup did NOT open this time. Only skip the card if we opened the popup
+    // VERY recently (within 4s — i.e. the fast-path just opened it and this is
+    // the backend-path for the same load). Otherwise always show the card so a
+    // risky page is never left with no warning when Chrome refuses the popup.
+    if (_popupShownByTab[tabId] && (Date.now() - _popupShownByTab[tabId]) < 4000) {
         return;
     }
 
@@ -196,14 +198,14 @@ chrome.webNavigation.onCompleted.addListener(async (details) => {
     const url = details.url;
     if (!url || !/^https?:\/\//i.test(url)) return;
 
-    if (shouldSkipScan(details.tabId, url)) return;
-
     // FAST PATH: score locally first (instant, no network) so a clearly risky
-    // page warns immediately, before the slower backend scan returns.
+    // page warns immediately. This runs on EVERY navigation (even a revisit
+    // within the cooldown) so the popup always shows for a risky page.
+    let quickStatus = 'safe';
     try {
         if (typeof phishshieldScoreUrl === 'function') {
             const quick = phishshieldScoreUrl(url);
-            const quickStatus = quick.verdict === 'danger' ? 'phishing'
+            quickStatus = quick.verdict === 'danger' ? 'phishing'
                 : (quick.verdict === 'warn' ? 'suspicious' : 'safe');
             if (quickStatus !== 'safe') {
                 setBadgeForVerdict(details.tabId, quickStatus);
@@ -215,6 +217,10 @@ chrome.webNavigation.onCompleted.addListener(async (details) => {
             }
         }
     } catch (e) { /* ignore */ }
+
+    // The cooldown only suppresses the heavier BACKEND scan (to save quota on
+    // rapid revisits) — not the instant warning above.
+    if (shouldSkipScan(details.tabId, url)) return;
 
     try {
         const result = await scanUrl(url);
