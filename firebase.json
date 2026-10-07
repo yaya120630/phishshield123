@@ -9,10 +9,21 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "redirects": [
+      {
+        "source": "/",
+        "destination": "/css/index.html",
+        "type": 302
+      }
+    ],
     "rewrites": [
       {
-        "source": "**",
+        "source": "/dashboard",
         "destination": "/index.html"
+      },
+      {
+        "source": "**",
+        "destination": "/css/index.html"
       }
     ]
   }
