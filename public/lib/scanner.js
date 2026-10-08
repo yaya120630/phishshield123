@@ -7,7 +7,9 @@ const PHISHSHIELD_SUSPICIOUS_WORDS = [
 
 const PHISHSHIELD_SHORTENERS = new Set([
   "bit.ly", "tinyurl.com", "t.co", "goo.gl", "ow.ly", "is.gd", "buff.ly",
-  "rebrand.ly", "cutt.ly", "shorte.st"
+  "rebrand.ly", "cutt.ly", "shorte.st",
+  "u.gy", "u.to", "v.gd", "shorturl.at", "rb.gy", "tiny.cc", "s.id",
+  "lnkd.in", "db.tt", "qr.ae", "adf.ly", "bit.do", "mcaf.ee"
 ]);
 
 const PHISHSHIELD_RISKY_TLDS = new Set([
@@ -170,10 +172,12 @@ function phishshieldScoreUrl(urlStr) {
     }
 
     // 2a. Lookalike-suffix spoofing: the host embeds an official domain as a
-    //     label but is not actually on it (e.g. roblox.com.do). Strong flag.
+    //     label but is not actually on it (e.g. roblox.com.do). This is a
+    //     strong impersonation signal, weighted high enough (65) to cross the
+    //     "danger" threshold on its own so the page is hard-blocked.
     const lookalikeBrand = psLookalikeBrand(host);
     if (lookalikeBrand) {
-      risk += 55;
+      risk += 65;
       reasons.push("Imitates " + lookalikeBrand + " domain");
     }
 
